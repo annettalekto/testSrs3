@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"ipk"
 	"os/exec"
 	"strconv"
 	"time"
@@ -31,7 +30,7 @@ func main() {
 	gProgramName = "Электронная имитация параметров"
 
 	// Инит
-	initIPK()
+	// initIPK()
 	// initDevice() ,??
 	// запросить данные УПП!
 
@@ -275,90 +274,106 @@ func dataCAN() fyne.CanvasObject {
 func speed() fyne.CanvasObject {
 
 	// Совместное-раздельное управление
-	separately := false // вместе
-	direction1 := uint8(ipk.MotionOnward)
-	direction2 := uint8(ipk.MotionOnward)
+	separately := binding.NewBool() // false вместе
+	direction1 := uint8(1 /*ipk.MotionOnward*/)
+	direction2 := uint8(1 /*ipk.MotionOnward*/)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
 	numberTeeth, _ := strconv.ParseInt(valueNumberTeeth, 10, 32)
 	diameter, _ := strconv.ParseInt(valueBandageDiameter1, 10, 32)
 
 	// debug: todo
-	sp.SetMotion(direction1) // todo править библиотеку!
-	sp.SetSpeed(speed1, speed2)
-	sp.SetAcceleration(accel1, accel2)
-	sp.Init(fcs, uint32(numberTeeth), uint32(diameter))
-
+	// sp.SetMotion(direction1) // todo править библиотеку!
+	// sp.SetSpeed(speed1, speed2)
+	// sp.SetAcceleration(accel1, accel2)
+	// sp.Init(fcs, uint32(numberTeeth), uint32(diameter))
 	fmt.Println(direction1, direction2, speed1, speed2, accel1, accel2) // todo
 
-	selectbox := widget.NewSelect([]string{"Совместное", "Раздельное"}, func(s string) {
-		if s == "Отдельное" {
-			separately = true
-			fmt.Println(separately)
-		}
-	})
-	selectbox.SetSelected("Совместное")
-	dummy := widget.NewLabel("")
-
-	// Скорость (+ускорение и направление)
+	// Скорость
 	textSpeed := canvas.NewText("	Частотные каналы: ", color.Black)
 	textSpeed.TextSize = 16
 
-	entrySpeed1 := widget.NewEntry()
-	entrySpeed1.SetPlaceHolder("0.00")
-	entrySpeed2 := widget.NewEntry()
-	entrySpeed2.SetPlaceHolder("0.00")
-	entryAccel1 := widget.NewEntry()
-	entryAccel1.SetPlaceHolder("0.00")
-	entryAccel2 := widget.NewEntry()
-	entryAccel2.SetPlaceHolder("0.00")
+	dummy := widget.NewLabel("")
+	entrySpeed1 := newNumericalEntry() // todo заменять запятую на точку? игнорировать запятую?
+	entrySpeed2 := newNumericalEntry()
+	entryAccel1 := newNumericalEntry()
+	entryAccel2 := newNumericalEntry()
+	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
+
+	// обработка скорости
+	entrySpeed1.Entry.SetPlaceHolder("0.00")
+	entrySpeed1.Entry.OnChanged = func(str string) {
+		speed1, _ = strconv.ParseFloat(str, 64) // todo err
+		sep, _ := separately.Get()              // !sep если управление не раздельное
+		if !sep {
+			entrySpeed2.Entry.SetText(str) // тоже вводим в поле второго канала скорости
+		}
+	}
+
+	entrySpeed2.Entry.SetPlaceHolder("0.00")
+	entrySpeed2.Entry.OnChanged = func(str string) {
+		speed2, _ = strconv.ParseFloat(str, 64)
+		sep, _ := separately.Get()
+		if !sep {
+			entrySpeed1.Entry.SetText(str)
+		}
+	}
+
+	if entrySpeed1.Entered || entrySpeed2.Entered {
+		// sp.SetSpeed(speed1, speed2)
+	}
+
+	// обработка ускорения
+	entryAccel1.Entry.SetPlaceHolder("0.00")
+	entryAccel2.Entry.SetPlaceHolder("0.00")
 
 	directionChoice := []string{"Вперед", "Назад"}
-	var selectedDirection1, selectedDirection2 *widget.Select
-	selectedDirection1 = widget.NewSelect(directionChoice, func(s string) {
+	var selectDirection1, selectDirection2 *widget.Select
+	selectDirection1 = widget.NewSelect(directionChoice, func(s string) {
+		sep, _ := separately.Get() // !sep если управление не раздельное
 		if s == "Вперед" {
-			direction1 = ipk.MotionOnward
-			if !separately {
-				selectedDirection1.SetSelected("Вперед")
+			direction1 = 1                                     /*ipk.MotionOnward*/
+			if !sep && selectDirection2.SelectedIndex() != 0 { // бесконечный вызов!
+				selectDirection2.SetSelectedIndex(0)
 			}
 		} else {
-			direction1 = ipk.MotionBackwards
-			if !separately {
-				selectedDirection1.SetSelected("Назад")
+			direction1 = 2 /*ipk.MotionBackwards*/
+			if !sep && selectDirection1.SelectedIndex() != 1 {
+				selectDirection2.SetSelectedIndex(1)
 			}
 		}
 	})
-	selectedDirection2 = widget.NewSelect(directionChoice, func(s string) {
+	selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
+		sep, _ := separately.Get()
 		if s == "Вперед" {
-			direction2 = ipk.MotionOnward
-			if !separately {
-				selectedDirection2.SetSelected("Вперед")
+			direction2 = 1
+			if !sep && selectDirection1.SelectedIndex() != 0 {
+				selectDirection1.SetSelectedIndex(0)
 			}
 		} else {
-			direction2 = ipk.MotionBackwards
-			if !separately {
-				selectedDirection2.SetSelected("Назад")
+			direction2 = 2 /*ipk.MotionBackwards*/
+			if !sep && selectDirection1.SelectedIndex() != 1 {
+				selectDirection1.SetSelectedIndex(1)
 			}
 		}
 	})
-	selectedDirection1.SetSelected("Вперед")
-	selectedDirection2.SetSelected("Вперед")
+	selectDirection1.SetSelectedIndex(0) //"Вперед")
+	selectDirection2.SetSelectedIndex(0) //"Вперед")
 
 	box1 := container.NewGridWithColumns(
 		3,
 		dummy, widget.NewLabel("Канал 1"), widget.NewLabel("Канал 2"),
 		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, entrySpeed2,
 		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, entryAccel2,
-		widget.NewLabel("Направление:"), selectedDirection1, selectedDirection2,
-		widget.NewLabel("Управление:"), selectbox,
+		widget.NewLabel("Направление:"), selectDirection1, selectDirection2,
 	)
 
-	boxSpeed := container.NewVBox(dummy, textSpeed, box1)
+	boxSpeed := container.NewVBox(dummy, textSpeed, box1, separatlyCheck)
 
 	// Доп. параметры:
-	entryDiameter := widget.NewEntry()
-	entryDiameter.SetPlaceHolder(fmt.Sprintf("%d", diameter))
-	entryNumberTeeth := widget.NewEntry()
-	entryNumberTeeth.SetPlaceHolder(fmt.Sprintf("%d", numberTeeth))
+	entryDiameter := newNumericalEntry()
+	entryDiameter.Entry.SetPlaceHolder(fmt.Sprintf("%d", diameter))
+	entryNumberTeeth := newNumericalEntry()
+	entryNumberTeeth.Entry.SetPlaceHolder(fmt.Sprintf("%d", numberTeeth))
 
 	box2 := container.NewGridWithColumns(
 		2,
@@ -371,8 +386,8 @@ func speed() fyne.CanvasObject {
 	textMileage := canvas.NewText("	Имитация пути: ", color.Black)
 	textMileage.TextSize = 16
 
-	entryMileage := widget.NewEntry()
-	entryMileage.SetPlaceHolder("20.000")
+	entryMileage := newNumericalEntry()
+	entryMileage.Entry.SetPlaceHolder("20.000")
 	buttonMileage := widget.NewButton("Пуск", func() {
 		// todo запуск
 	})
@@ -390,12 +405,12 @@ func speed() fyne.CanvasObject {
 	textPress := canvas.NewText("	Аналоговые каналы: ", color.Black)
 	textPress.TextSize = 16
 
-	entryPressChannel1 := widget.NewEntry()
-	entryPressChannel1.SetPlaceHolder("0.00") // todo ограничить 10 атм
-	entryPressChannel2 := widget.NewEntry()
-	entryPressChannel2.SetPlaceHolder("0.00") // 20 атм
-	entryPressChannel3 := widget.NewEntry()
-	entryPressChannel3.SetPlaceHolder("0.00") // 20 атм
+	entryPressChannel1 := newNumericalEntry()
+	entryPressChannel1.Entry.SetPlaceHolder("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
+	entryPressChannel2 := newNumericalEntry()
+	entryPressChannel2.Entry.SetPlaceHolder("0.00") // 20 атм
+	entryPressChannel3 := newNumericalEntry()
+	entryPressChannel3.Entry.SetPlaceHolder("0.00") // 20 атм
 
 	box4 := container.NewGridWithColumns(
 		2,
