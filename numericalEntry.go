@@ -34,7 +34,7 @@ func (e *numericalEntry) TypedKey(key *fyne.KeyEvent) {
 	switch key.Name {
 	case fyne.KeyEnter, fyne.KeyReturn:
 		e.Entered = true
-		fmt.Printf("Нажата клавиша %s\n", key.Name)
+		fmt.Printf("Нажата клавиша %s\n", key.Name) // todo убрать после отладки
 	case fyne.KeyBackspace, fyne.KeyDelete, fyne.KeyRight, fyne.KeyLeft, fyne.KeyHome, fyne.KeyEnd:
 		e.Entry.TypedKey(key)
 

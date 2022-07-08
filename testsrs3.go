@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"os/exec"
 	"strconv"
 	"time"
@@ -74,16 +73,18 @@ func main() {
 	}()
 
 	// Элементы
-	top := top()
 	boxSpeed := speed()
-	boxInput := inputSignals()
 	boxOutput := outputSignals()
-	boxSignalsIO := container.NewHSplit(boxOutput, boxInput)
-	boxCAN := dataCAN()
+	box1 := container.NewHSplit(boxSpeed, boxOutput)
 
-	box1 := container.NewHSplit(boxSpeed, boxSignalsIO)
-	box2 := container.NewVSplit(top, box1)
-	box := container.NewHSplit(box2, boxCAN)
+	boxInput := inputSignals()
+	box2 := container.NewVSplit(box1, boxInput)
+
+	top := top()
+	box3 := container.NewVSplit(top, box2)
+
+	boxCAN := dataCAN()
+	box := container.NewHSplit(box3, boxCAN)
 
 	w.SetContent(box)
 	w.ShowAndRun()
@@ -219,8 +220,9 @@ func dataCANToString(id uint32, data [8]byte) (str string) {
 func dataCAN() fyne.CanvasObject {
 	mapDataCAN = make(map[uint32][8]byte) // скопище байтов из CAN
 
-	text := canvas.NewText("	Данные CAN: ", color.Black)
-	text.TextSize = 16
+	var style fyne.TextStyle
+	style.Bold = true
+	text := widget.NewLabelWithStyle("Данные CAN:", fyne.TextAlignCenter, style)
 
 	labelSpeed1 := widget.NewLabel("")
 	labelSpeed2 := widget.NewLabel("")
@@ -233,6 +235,7 @@ func dataCAN() fyne.CanvasObject {
 	labelTimeBU := widget.NewLabel("")
 
 	// обновление данных
+	labelTimeBU.SetText(dataCANToString(idTimeBU, mapDataCAN[idTimeBU]))
 	labelSpeed1.SetText(dataCANToString(idSpeed1, mapDataCAN[idSpeed1]))
 	labelSpeed2.SetText(dataCANToString(idSpeed2, mapDataCAN[idSpeed2]))
 	labelAcceleration1.SetText(dataCANToString(idAcceleration1, mapDataCAN[idAcceleration1]))
@@ -241,7 +244,6 @@ func dataCAN() fyne.CanvasObject {
 	labelPress2.SetText(dataCANToString(2, mapDataCAN[2]))
 	labelPress3.SetText(dataCANToString(3, mapDataCAN[3]))
 	labelDistance.SetText(dataCANToString(idDistance, mapDataCAN[idDistance]))
-	labelTimeBU.SetText(dataCANToString(idTimeBU, mapDataCAN[idTimeBU]))
 
 	// получение данных
 	go func() {
@@ -278,19 +280,19 @@ func speed() fyne.CanvasObject {
 	direction1 := uint8(1 /*ipk.MotionOnward*/)
 	direction2 := uint8(1 /*ipk.MotionOnward*/)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
-	numberTeeth, _ := strconv.ParseInt(valueNumberTeeth, 10, 32)
-	diameter, _ := strconv.ParseInt(valueBandageDiameter1, 10, 32)
 
 	// debug: todo
 	// sp.SetMotion(direction1) // todo править библиотеку!
 	// sp.SetSpeed(speed1, speed2)
 	// sp.SetAcceleration(accel1, accel2)
-	// sp.Init(fcs, uint32(numberTeeth), uint32(diameter))
+
 	fmt.Println(direction1, direction2, speed1, speed2, accel1, accel2) // todo
 
-	// Скорость
-	textSpeed := canvas.NewText("	Частотные каналы: ", color.Black)
-	textSpeed.TextSize = 16
+	// ------------------------- box 1 ----------------------------
+
+	var style fyne.TextStyle
+	style.Bold = true
+	textSpeed := widget.NewLabelWithStyle("Частотные каналы:", fyne.TextAlignCenter, style)
 
 	dummy := widget.NewLabel("")
 	entrySpeed1 := newNumericalEntry() // todo заменять запятую на точку? игнорировать запятую?
@@ -300,6 +302,7 @@ func speed() fyne.CanvasObject {
 	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
 	// обработка скорости
+	entrySpeed1.Entry.TextStyle.Monospace = true
 	entrySpeed1.Entry.SetPlaceHolder("0.00")
 	entrySpeed1.Entry.OnChanged = func(str string) {
 		speed1, _ = strconv.ParseFloat(str, 64) // todo err
@@ -309,6 +312,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 
+	entrySpeed2.Entry.TextStyle.Monospace = true
 	entrySpeed2.Entry.SetPlaceHolder("0.00")
 	entrySpeed2.Entry.OnChanged = func(str string) {
 		speed2, _ = strconv.ParseFloat(str, 64)
@@ -323,13 +327,36 @@ func speed() fyne.CanvasObject {
 	}
 
 	// обработка ускорения
+	entryAccel1.Entry.TextStyle.Monospace = true
 	entryAccel1.Entry.SetPlaceHolder("0.00")
-	entryAccel2.Entry.SetPlaceHolder("0.00")
+	entryAccel1.Entry.OnChanged = func(str string) {
+		accel1, _ = strconv.ParseFloat(str, 64)
+		sep, _ := separately.Get()
+		if !sep {
+			entryAccel2.Entry.SetText(str)
+		}
+	}
 
+	entryAccel2.Entry.TextStyle.Monospace = true
+	entryAccel2.Entry.SetPlaceHolder("0.00")
+	entryAccel2.Entry.OnChanged = func(str string) {
+		accel2, _ = strconv.ParseFloat(str, 64)
+		sep, _ := separately.Get()
+		if !sep {
+			entryAccel1.Entry.SetText(str)
+		}
+	}
+
+	if entryAccel1.Entered || entryAccel2.Entered {
+		// sp.SetAcceleration(accel1, accel2)
+	}
+
+	// обработка направления
 	directionChoice := []string{"Вперед", "Назад"}
 	var selectDirection1, selectDirection2 *widget.Select
+
 	selectDirection1 = widget.NewSelect(directionChoice, func(s string) {
-		sep, _ := separately.Get() // !sep если управление не раздельное
+		sep, _ := separately.Get()
 		if s == "Вперед" {
 			direction1 = 1                                     /*ipk.MotionOnward*/
 			if !sep && selectDirection2.SelectedIndex() != 0 { // бесконечный вызов!
@@ -341,13 +368,14 @@ func speed() fyne.CanvasObject {
 				selectDirection2.SetSelectedIndex(1)
 			}
 		}
+		// sp.SetMotion(direction1)
 	})
 	selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
 		if s == "Вперед" {
 			direction2 = 1
-			if !sep && selectDirection1.SelectedIndex() != 0 {
-				selectDirection1.SetSelectedIndex(0)
+			if !sep && selectDirection2.SelectedIndex() != 0 {
+				selectDirection2.SetSelectedIndex(0)
 			}
 		} else {
 			direction2 = 2 /*ipk.MotionBackwards*/
@@ -355,7 +383,9 @@ func speed() fyne.CanvasObject {
 				selectDirection1.SetSelectedIndex(1)
 			}
 		}
+		// sp.SetMotion(direction1)
 	})
+
 	selectDirection1.SetSelectedIndex(0) //"Вперед")
 	selectDirection2.SetSelectedIndex(0) //"Вперед")
 
@@ -367,31 +397,20 @@ func speed() fyne.CanvasObject {
 		widget.NewLabel("Направление:"), selectDirection1, selectDirection2,
 	)
 
-	boxSpeed := container.NewVBox(dummy, textSpeed, box1, separatlyCheck)
+	boxSpeed := container.NewVBox(textSpeed, box1, separatlyCheck)
 
-	// Доп. параметры:
-	entryDiameter := newNumericalEntry()
-	entryDiameter.Entry.SetPlaceHolder(fmt.Sprintf("%d", diameter))
-	entryNumberTeeth := newNumericalEntry()
-	entryNumberTeeth.Entry.SetPlaceHolder(fmt.Sprintf("%d", numberTeeth))
-
-	box2 := container.NewGridWithColumns(
-		2,
-		widget.NewLabel("Кол-во зубьев: "), entryNumberTeeth,
-		widget.NewLabel("Диаметр: "), entryDiameter,
-	)
-	boxAddParameters := container.NewVBox(dummy, box2, dummy)
-
+	// ------------------------- box 2 ----------------------------
 	// Путь:
-	textMileage := canvas.NewText("	Имитация пути: ", color.Black)
-	textMileage.TextSize = 16
+
+	textMileage := widget.NewLabelWithStyle("Имитация пути:", fyne.TextAlignCenter, style)
 
 	entryMileage := newNumericalEntry()
+	entryMileage.Entry.TextStyle.Monospace = true
 	entryMileage.Entry.SetPlaceHolder("20.000")
 	buttonMileage := widget.NewButton("Пуск", func() {
 		// todo запуск
 	})
-	labelMileage := widget.NewLabel("") // todo обновлять если запущена проверка
+	labelMileage := widget.NewLabel("10.000") // todo обновлять если запущена проверка
 	// byteDistance(mapDataCAN[idDistance])
 
 	box3 := container.NewGridWithColumns(
@@ -399,57 +418,67 @@ func speed() fyne.CanvasObject {
 		widget.NewLabel("Дистанция (км):"), entryMileage, buttonMileage,
 		widget.NewLabel("Текущая (км):"), labelMileage,
 	)
-	boxMileage := container.NewVBox(dummy, textMileage, box3, dummy)
+	boxMileage := container.NewVBox(textMileage, box3)
 
+	// ------------------------- box 3 ----------------------------
 	// Давление
-	textPress := canvas.NewText("	Аналоговые каналы: ", color.Black)
-	textPress.TextSize = 16
 
-	entryPressChannel1 := newNumericalEntry()
-	entryPressChannel1.Entry.SetPlaceHolder("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
-	entryPressChannel2 := newNumericalEntry()
-	entryPressChannel2.Entry.SetPlaceHolder("0.00") // 20 атм
-	entryPressChannel3 := newNumericalEntry()
-	entryPressChannel3.Entry.SetPlaceHolder("0.00") // 20 атм
+	textPress := widget.NewLabelWithStyle("Аналоговые каналы:", fyne.TextAlignCenter, style)
+
+	entryPress1 := newNumericalEntry()
+	entryPress1.Entry.TextStyle.Monospace = true
+	entryPress1.Entry.SetPlaceHolder("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
+
+	entryPress2 := newNumericalEntry()
+	entryPress2.Entry.TextStyle.Monospace = true
+	entryPress2.Entry.SetPlaceHolder("0.00") // 20 атм
+
+	entryPress3 := newNumericalEntry()
+	entryPress3.Entry.TextStyle.Monospace = true
+	entryPress3.Entry.SetPlaceHolder("0.00") // 20 атм
 
 	box4 := container.NewGridWithColumns(
 		2,
-		widget.NewLabel("Канал 1 (кгс/см²):"), entryPressChannel1,
-		widget.NewLabel("Канал 2 (кгс/см²):"), entryPressChannel2,
-		widget.NewLabel("Канал 3 (кгс/см²):"), entryPressChannel3,
+		widget.NewLabel("Канал 1 (кгс/см²):"), entryPress1,
+		widget.NewLabel("Канал 2 (кгс/см²):"), entryPress2,
+		widget.NewLabel("Канал 3 (кгс/см²):"), entryPress3,
 	)
-	boxPress := container.NewVBox(dummy, textPress, box4, dummy)
+	boxPress := container.NewVBox(textPress, box4, dummy)
 
-	box5 := container.NewVBox(boxSpeed, boxAddParameters)
-	boxSpeedAndMileage := container.NewVSplit(box5, boxMileage)
+	boxAll := container.NewVBox(boxSpeed, boxMileage, boxPress)
+	// boxSpeedAndMileage := container.NewVSplit(boxSpeed, boxMileage)
+	// boxAll := container.NewVSplit(boxSpeedAndMileage, boxPress)
 
-	boxAll := container.NewVSplit(boxSpeedAndMileage, boxPress)
 	box := container.NewHBox(boxAll, dummy)
 
-	return container.New(layout.NewGridWrapLayout(fyne.NewSize(450, 850)), box)
+	return box //container.New(layout.NewGridWrapLayout(fyne.NewSize(450, 850)), box)
 }
 
-// коды РЦ (Сигналы ИФ) установить 1 из 7
-// Вых.БУ 50В, 10В
+// коды РЦ (Сигналы ИФ) +
+// Вых.БУ: 50В, 10В
 func outputSignals() fyne.CanvasObject {
-	dummy := widget.NewLabel("")
+	// dummy := widget.NewLabel("")
 
-	labelCode := widget.NewLabel("Коды РЦ:")
+	var style fyne.TextStyle
+	style.Bold = true
+	labelCode := widget.NewLabelWithStyle("Коды РЦ:", fyne.TextAlignCenter, style)
+
 	code := []string{"Нет",
 		"КЖ 1.6",
-		"Ж  1.6",
-		"З  1.6",
+		"Ж 1.6",
+		"З 1.6",
 		"КЖ 1.9",
-		"Ж  1.9",
-		"З  1.9",
+		"Ж 1.9",
+		"З 1.9",
 	}
 	radio := widget.NewRadioGroup(code, func(s string) {
 		fmt.Println(s)
 	})
 	// radio.Horizontal = true
-	boxCode := container.NewVBox(dummy, labelCode, radio)
+	boxCode := container.NewVBox(labelCode, radio)
 
-	labelOut50V := widget.NewLabel("Вых.БУ (50В):")
+	labelOut := widget.NewLabelWithStyle("Вых.БУ:", fyne.TextAlignCenter, style)
+	// 50V
 	checkG := widget.NewCheck("З", nil)            // З		0
 	checkY := widget.NewCheck("Ж", nil)            // Ж		1
 	checkRY := widget.NewCheck("КЖ", nil)          // КЖ	2
@@ -458,43 +487,47 @@ func outputSignals() fyne.CanvasObject {
 	checkEPK1 := widget.NewCheck("ЭПК1", nil)      // ЭПК1	5
 	checkIF := widget.NewCheck("ИФ", nil)          // ИФ	6
 	checkTracktion := widget.NewCheck("Тяга", nil) // Тяга	7
-	boxOut50V := container.NewVBox(dummy, labelOut50V, checkG, checkY, checkRY, checkR, checkW, checkEPK1, checkIF, checkTracktion)
-
-	labelOut10V := widget.NewLabel("Вых.БУ (10В):")
+	boxOut50V := container.NewVBox(checkG, checkY, checkRY, checkR, checkW, checkEPK1, checkIF, checkTracktion)
+	// 10V
 	checkLP := widget.NewCheck("ЛП", nil)              // 1
 	checkButtonUhod := widget.NewCheck("кн.Уход", nil) // 3
 	checkEPK := widget.NewCheck("ЭПК", nil)            // 5
 	checkPowerBU := widget.NewCheck("Пит.БУ", nil)     // 7
 	checkKeyEPK := widget.NewCheck("Ключ ЭПК", nil)    // 9
-	boxOut10V := container.NewVBox(dummy, labelOut10V, checkLP, checkButtonUhod, checkEPK, checkPowerBU, checkKeyEPK)
+	boxOut10V := container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkPowerBU, checkKeyEPK)
 
-	boxOut := container.NewVBox(boxOut10V, boxOut50V)
-	return container.NewHBox(dummy, boxCode, dummy, boxOut, dummy)
+	boxOut := container.NewVBox(labelOut, boxOut10V, boxOut50V)
+	box := container.NewHBox(boxOut, boxCode)
+
+	return box
 }
 
 // Уставки, входы БУС = считать
 func inputSignals() fyne.CanvasObject {
-	dummy := widget.NewLabel("")
+	// dummy := widget.NewLabel("")
 
-	labelRelay := widget.NewLabel("Реле уставок:")
+	var style fyne.TextStyle
+	style.Bold = true
+	labelRelay := widget.NewLabelWithStyle("Реле превышения уставок:", fyne.TextAlignLeading, style)
+
 	check1 := widget.NewCheck("1", nil)
 	check20 := widget.NewCheck("20", nil)
 	check80 := widget.NewCheck("80", nil)
 	check60 := widget.NewCheck("60", nil)
 	check30 := widget.NewCheck("30", nil)
-	boxRelay := container.NewVBox(dummy, labelRelay, check1, check20, check80, check60, check30)
+	boxRelay := container.NewHBox(check1, check20, check80, check60, check30)
 
-	labelBUS := widget.NewLabel("Входы БУС:")
+	// labelBUS := widget.NewLabel("Входы БУС:")
 	checkPSS2 := widget.NewCheck("ПСС2", nil)
 	checkUhod2 := widget.NewCheck("Уход 2", nil)
 	checkPowerEPK := widget.NewCheck("Пит.ЭПК", nil)
 	checkPB2 := widget.NewCheck("РБ2", nil)
 	checkEVM := widget.NewCheck("ЭВМ", nil)
-	boxBUS := container.NewVBox(dummy, labelBUS, checkPSS2, checkUhod2, checkPowerEPK, checkPB2, checkEVM)
+	boxBUS := container.NewHBox(checkPSS2, checkUhod2, checkPowerEPK, checkPB2, checkEVM)
 
-	box := container.NewVBox(boxRelay, boxBUS)
+	box := container.NewHBox(boxRelay, boxBUS)
 
-	return container.NewHBox(dummy, box, dummy)
+	return container.NewVBox(labelRelay, box)
 }
 
 func top() fyne.CanvasObject {
@@ -507,9 +540,20 @@ func top() fyne.CanvasObject {
 	turn.Set(false)
 	checkTurt := widget.NewCheckWithData("Режим обслуживания", turn)
 
-	box := container.NewHBox(checkPower, checkTurt)
+	// Доп. параметры:
+	numberTeeth, _ := strconv.ParseInt(valueNumberTeeth, 10, 32)
+	diameter, _ := strconv.ParseInt(valueBandageDiameter1, 10, 32)
+	// sp.Init(fcs, uint32(numberTeeth), uint32(diameter))
 
-	return box
+	entryDiameter := newNumericalEntry()
+	diameter = 42 // todo ОТЛАДКА
+	numberTeeth = 1350
+	entryDiameter.Entry.SetPlaceHolder(fmt.Sprintf("%d", diameter))
+	entryNumberTeeth := newNumericalEntry()
+	entryNumberTeeth.Entry.SetPlaceHolder(fmt.Sprintf("%d", numberTeeth))
+
+	box := container.NewHBox(checkPower, checkTurt, widget.NewLabel("Кол-во зубьев: "), entryNumberTeeth, widget.NewLabel("Диаметр: "), entryDiameter)
+	return container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
 }
 
 //---------------------------------------------------------------------------
