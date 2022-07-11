@@ -1,114 +1,113 @@
 package main
 
-import "github.com/amdf/ixxatvci3/candev"
+import (
+	"errors"
+	"strconv"
+	"time"
 
-// import (
-// 	"errors"
-// 	"ipk"
-// 	"strconv"
-// 	"time"
-
-// 	"github.com/amdf/ixxatvci3/candev"
-// )
+	"github.com/amdf/ipk"
+	"github.com/amdf/ixxatvci3/candev"
+)
 
 var can25 candev.Device
 
-// var ipkBox ipk.IPK
-// var sp ipk.Speed
-// var fas *ipk.AnalogDevice
-// var fds *ipk.BinaryDevice
-// var fcs *ipk.FreqDevice
+var ipkBox ipk.IPK
 
-// var channel1 ipk.PressureOutput // sensorTM Переменная для задания давления ТM в кгс/см² (канал 1)
-// var channel2 ipk.PressureOutput // sensorTC Переменная для задания давления ТЦ в кгс/см² (канал 2)
-// var channel3 ipk.PressureOutput // sensorGR Переменная для задания давления GR в кгс/см²
+var sp ipk.Speed
+var fas *ipk.AnalogDevice
+var fds *ipk.BinaryDevice
+var fcs *ipk.FreqDevice
 
-// func initIPK() (err error) {
+var channel1 ipk.PressureOutput // sensorTM Переменная для задания давления ТM в кгс/см² (канал 1)
+var channel2 ipk.PressureOutput // sensorTC Переменная для задания давления ТЦ в кгс/см² (канал 2)
+var channel3 ipk.PressureOutput // sensorGR Переменная для задания давления GR в кгс/см²
 
-// 	ipkBox.AnalogDev = new(ipk.AnalogDevice)
-// 	ipkBox.BinDev = new(ipk.BinaryDevice)
-// 	ipkBox.FreqDev = new(ipk.FreqDevice)
+func initIPK() (err error) {
 
-// 	if !ipkBox.AnalogDev.Open() { //открываем ФАС-3
-// 		err = errors.New("ошибка инициализации ФАС")
-// 		return
-// 	}
-// 	if !ipkBox.BinDev.Open() { //открываем ФДС-3
-// 		err = errors.New("ошибка инициализации ФДС")
-// 		return
-// 	}
-// 	if !ipkBox.FreqDev.Open() { //открываем ФЧС-3
-// 		err = errors.New("ошибка инициализации ФЧС")
-// 		return
-// 	}
-// 	fas = ipkBox.AnalogDev
-// 	fds = ipkBox.BinDev
-// 	fcs = ipkBox.FreqDev
+	ipkBox.AnalogDev = new(ipk.AnalogDevice)
+	ipkBox.BinDev = new(ipk.BinaryDevice)
+	ipkBox.FreqDev = new(ipk.FreqDevice)
 
-// 	if err = InitFreqIpkChannel(); err != nil {
-// 		err = errors.New("InitFreqIpkChannel(): " + err.Error())
-// 		return
-// 	}
+	if !ipkBox.AnalogDev.Open() { //открываем ФАС-3
+		err = errors.New("ошибка инициализации ФАС")
+		return
+	}
+	if !ipkBox.BinDev.Open() { //открываем ФДС-3
+		err = errors.New("ошибка инициализации ФДС")
+		return
+	}
+	if !ipkBox.FreqDev.Open() { //открываем ФЧС-3
+		err = errors.New("ошибка инициализации ФЧС")
+		return
+	}
+	fas = ipkBox.AnalogDev
+	fds = ipkBox.BinDev
+	fcs = ipkBox.FreqDev
 
-// 	// открываем ЦАП 5
-// 	channelN5 := new(ipk.DAC)
-// 	if channelN5.Init(fas, ipk.DAC5); err != nil {
-// 		err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
-// 		return
-// 	}
+	if err = InitFreqIpkChannel(); err != nil {
+		err = errors.New("InitFreqIpkChannel(): " + err.Error())
+		return
+	}
 
-// 	// открываем ЦАП 6
-// 	channelN6 := new(ipk.DAC)
-// 	if channelN6.Init(fas, ipk.DAC6); err != nil {
-// 		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
-// 		return
-// 	}
+	// открываем ЦАП 5
+	channelN5 := new(ipk.DAC)
+	if channelN5.Init(fas, ipk.DAC5); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
+		return
+	}
 
-// 	// открываем ЦАП 7
-// 	channelN7 := new(ipk.DAC)
-// 	channelN7.Init(fas, ipk.DAC7)
+	// открываем ЦАП 6
+	channelN6 := new(ipk.DAC)
+	if channelN6.Init(fas, ipk.DAC6); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+		return
+	}
 
-// 	if channel1.Init(channelN5, ipk.DACAtmosphere, 10); err != nil { // максимальное давление 10 кгс/см² (= 10 технических атмосфер) соответствует 20 мА
-// 		err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
-// 		return
-// 	}
+	// открываем ЦАП 7
+	channelN7 := new(ipk.DAC)
+	channelN7.Init(fas, ipk.DAC7)
 
-// 	fPressureLimit, _ := strconv.ParseFloat(valuePressureLimit, 64)
-// 	if channel2.Init(channelN6, ipk.DACAtmosphere, fPressureLimit); err != nil {
-// 		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
-// 		return
-// 	}
+	if channel1.Init(channelN5, ipk.DACAtmosphere, 10); err != nil { // максимальное давление 10 кгс/см² (= 10 технических атмосфер) соответствует 20 мА
+		err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
+		return
+	}
 
-// 	if channel3.Init(channelN7, ipk.DACAtmosphere, 10); err != nil { // макс?
-// 		err = errors.New("ошибка инициализации ЦАП 7: " + err.Error())
-// 		return
-// 	}
+	fPressureLimit, _ := strconv.ParseFloat(valuePressureLimit, 64)
+	if channel2.Init(channelN6, ipk.DACAtmosphere, fPressureLimit); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+		return
+	}
 
-// 	return
-// }
+	if channel3.Init(channelN7, ipk.DACAtmosphere, 10); err != nil { // макс?
+		err = errors.New("ошибка инициализации ЦАП 7: " + err.Error())
+		return
+	}
 
-// // InitFreqIpkChannel init
-// func InitFreqIpkChannel() (err error) {
-// 	iBandageDiameter1, err := strconv.ParseInt(valueBandageDiameter1, 10, 32)
-// 	if err != nil {
-// 		return
-// 	}
-// 	iNumberTeeth, err := strconv.ParseInt(valueNumberTeeth, 10, 32)
-// 	if err != nil {
-// 		return
-// 	}
-// 	if err = sp.Init(fcs, uint32(iNumberTeeth), uint32(iBandageDiameter1)); err == nil {
+	return
+}
 
-// 		go func() { // начинаем в фоне обновлять данные по скорости
-// 			for {
-// 				fcs.UpdateFreqDataUSB()
-// 				time.Sleep(time.Second / 4)
-// 				// fmt.Printf("4SP ")
-// 			}
-// 		}()
-// 	}
-// 	return
-// }
+// InitFreqIpkChannel init
+func InitFreqIpkChannel() (err error) {
+	iBandageDiameter1, err := strconv.ParseInt(valueBandageDiameter1, 10, 32)
+	if err != nil {
+		return
+	}
+	iNumberTeeth, err := strconv.ParseInt(valueNumberTeeth, 10, 32)
+	if err != nil {
+		return
+	}
+	if err = sp.Init(fcs, uint32(iNumberTeeth), uint32(iBandageDiameter1)); err == nil {
+
+		go func() { // начинаем в фоне обновлять данные по скорости
+			for {
+				fcs.UpdateFreqDataUSB()
+				time.Sleep(time.Second / 4)
+				// fmt.Printf("4SP ")
+			}
+		}()
+	}
+	return
+}
 
 //-------------------------------------------------------------------------------//
 // УПП
@@ -143,6 +142,7 @@ const (
 	nameDigitsInPersonnelNumber = "26 Число разрядов в табельном номере"
 )
 
+var valueScaleLimit string
 var valueBandageDiameter1 string
 var valueBandageDiameter2 string
 var valuePresenceMPME string
@@ -168,3 +168,11 @@ var valueDensityDiscreteness string
 var valueNumberOfAddParameters string
 var valueDigitsInPersonnelNumber string
 var valuePressureUint string // 0 - кгс/см2, 1 - кПа
+
+func debugGetUPP() {
+	valueBandageDiameter1 = "1350"
+	valueBandageDiameter2 = "1350"
+	valueNumberTeeth = "42"
+	valueScaleLimit = "150"
+	valuePressureLimit = "16"
+}

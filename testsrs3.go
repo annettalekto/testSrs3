@@ -15,10 +15,11 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/amdf/ipk"
 )
 
 /* todo
-- при вводе цифр в entry как определить конец ввода? Как узнать о нажатии клавиши?
++ при вводе цифр в entry как определить конец ввода? Как узнать о нажатии клавиши?
 - при вводе цифр все запятые менять на точки, сделать общую функцию
 */
 
@@ -29,8 +30,9 @@ func main() {
 	gProgramName = "Электронная имитация параметров"
 
 	// Инит
-	// initIPK()
-	// initDevice() ,??
+	debugGetUPP()
+	initIPK()
+	// initDevice()
 	// запросить данные УПП!
 
 	err := can25.Init(0x1F, 0x16)
@@ -274,19 +276,18 @@ func dataCAN() fyne.CanvasObject {
 
 // Скорость, дистанция, давление
 func speed() fyne.CanvasObject {
+	var err error
 
 	// Совместное-раздельное управление
 	separately := binding.NewBool() // false вместе
-	direction1 := uint8(1 /*ipk.MotionOnward*/)
-	direction2 := uint8(1 /*ipk.MotionOnward*/)
+	direction1 := uint8(ipk.MotionOnward)
+	direction2 := uint8(ipk.MotionOnward)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
 
 	// debug: todo
-	// sp.SetMotion(direction1) // todo править библиотеку!
+	// sp.SetMotion(direction1)
 	// sp.SetSpeed(speed1, speed2)
 	// sp.SetAcceleration(accel1, accel2)
-
-	fmt.Println(direction1, direction2, speed1, speed2, accel1, accel2) // todo
 
 	// ------------------------- box 1 ----------------------------
 
@@ -301,38 +302,58 @@ func speed() fyne.CanvasObject {
 	entryAccel2 := newNumericalEntry()
 	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
-	// обработка скорости
+	// ---------------------- обработка скорости
+
 	entrySpeed1.Entry.TextStyle.Monospace = true
 	entrySpeed1.Entry.SetPlaceHolder("0.00")
 	entrySpeed1.Entry.OnChanged = func(str string) {
-		speed1, _ = strconv.ParseFloat(str, 64) // todo err
-		sep, _ := separately.Get()              // !sep если управление не раздельное
-		if !sep {
-			entrySpeed2.Entry.SetText(str) // тоже вводим в поле второго канала скорости
+		if str == "" {
+			fmt.Printf("Поле ввода скорости 1 пустое\n")
+			return
+		}
+		speed1, err = strconv.ParseFloat(str, 64)
+		if err != nil {
+			fmt.Printf("Ошибка перевода строки в число (скорость 1)\n")
+		}
+		if sep, _ := separately.Get(); !sep { // !не раздельное управление
+			speed2 = speed1                // тоже в переменную
+			entrySpeed2.Entry.SetText(str) // и в поле второго канала скорости
 		}
 	}
 
 	entrySpeed2.Entry.TextStyle.Monospace = true
 	entrySpeed2.Entry.SetPlaceHolder("0.00")
 	entrySpeed2.Entry.OnChanged = func(str string) {
-		speed2, _ = strconv.ParseFloat(str, 64)
-		sep, _ := separately.Get()
-		if !sep {
+		if str == "" {
+			fmt.Printf("Поле ввода скорости 2 пустое\n")
+			return
+		}
+		speed2, err = strconv.ParseFloat(str, 64)
+		if err != nil {
+			fmt.Printf("Ошибка перевода строки в число (скорость 2)\n")
+		}
+		if sep, _ := separately.Get(); !sep {
+			speed1 = speed2
 			entrySpeed1.Entry.SetText(str)
 		}
+
 	}
 
-	if entrySpeed1.Entered || entrySpeed2.Entered {
-		// sp.SetSpeed(speed1, speed2)
-	}
+	// ---------------------- обработка ускорения
 
-	// обработка ускорения
 	entryAccel1.Entry.TextStyle.Monospace = true
 	entryAccel1.Entry.SetPlaceHolder("0.00")
 	entryAccel1.Entry.OnChanged = func(str string) {
-		accel1, _ = strconv.ParseFloat(str, 64)
-		sep, _ := separately.Get()
-		if !sep {
+		if str == "" {
+			fmt.Printf("Поле ввода ускорения 1 пустое\n")
+			return
+		}
+		accel1, err = strconv.ParseFloat(str, 64)
+		if err != nil {
+			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
+		}
+		if sep, _ := separately.Get(); !sep {
+			accel2 = accel1
 			entryAccel2.Entry.SetText(str)
 		}
 	}
@@ -340,50 +361,54 @@ func speed() fyne.CanvasObject {
 	entryAccel2.Entry.TextStyle.Monospace = true
 	entryAccel2.Entry.SetPlaceHolder("0.00")
 	entryAccel2.Entry.OnChanged = func(str string) {
-		accel2, _ = strconv.ParseFloat(str, 64)
-		sep, _ := separately.Get()
-		if !sep {
+		if str == "" {
+			fmt.Printf("Поле ввода скорости 2 пустое\n")
+			return
+		}
+		accel2, err = strconv.ParseFloat(str, 64)
+		if err != nil {
+			fmt.Printf("Ошибка перевода строки в число (ускорение 2)\n")
+		}
+		if sep, _ := separately.Get(); !sep {
+			accel1 = accel2
 			entryAccel1.Entry.SetText(str)
 		}
 	}
 
-	if entryAccel1.Entered || entryAccel2.Entered {
-		// sp.SetAcceleration(accel1, accel2)
-	}
+	// ---------------------- обработка направления
 
-	// обработка направления
 	directionChoice := []string{"Вперед", "Назад"}
 	var selectDirection1, selectDirection2 *widget.Select
 
 	selectDirection1 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
 		if s == "Вперед" {
-			direction1 = 1                                     /*ipk.MotionOnward*/
+			direction1 = ipk.MotionOnward
 			if !sep && selectDirection2.SelectedIndex() != 0 { // бесконечный вызов!
 				selectDirection2.SetSelectedIndex(0)
 			}
 		} else {
-			direction1 = 2 /*ipk.MotionBackwards*/
+			direction1 = ipk.MotionBackwards
 			if !sep && selectDirection1.SelectedIndex() != 1 {
 				selectDirection2.SetSelectedIndex(1)
 			}
 		}
-		// sp.SetMotion(direction1)
+		sp.SetMotion(direction1) // todo должно быть два напревления
 	})
 	selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
 		if s == "Вперед" {
-			direction2 = 1
+			direction2 = ipk.MotionOnward
 			if !sep && selectDirection2.SelectedIndex() != 0 {
 				selectDirection2.SetSelectedIndex(0)
 			}
 		} else {
-			direction2 = 2 /*ipk.MotionBackwards*/
+			direction2 = ipk.MotionBackwards
 			if !sep && selectDirection1.SelectedIndex() != 1 {
 				selectDirection1.SetSelectedIndex(1)
 			}
 		}
-		// sp.SetMotion(direction1)
+		sp.SetMotion(direction2)
 	})
 
 	selectDirection1.SetSelectedIndex(0) //"Вперед")
@@ -401,12 +426,21 @@ func speed() fyne.CanvasObject {
 
 	// ------------------------- box 2 ----------------------------
 	// Путь:
+	distance := 0
 
 	textMileage := widget.NewLabelWithStyle("Имитация пути:", fyne.TextAlignCenter, style)
 
 	entryMileage := newNumericalEntry()
 	entryMileage.Entry.TextStyle.Monospace = true
 	entryMileage.Entry.SetPlaceHolder("20.000")
+	entryMileage.Entry.OnChanged = func(str string) {
+		distance, err = strconv.Atoi(str)
+		if err != nil {
+			distance = 0
+			entryMileage.Entry.SetText("0")
+			fmt.Printf("Ошибка перевода строки в число (путь)\n")
+		}
+	}
 	buttonMileage := widget.NewButton("Пуск", func() {
 		// todo запуск
 	})
@@ -450,6 +484,33 @@ func speed() fyne.CanvasObject {
 	// boxAll := container.NewVSplit(boxSpeedAndMileage, boxPress)
 
 	box := container.NewHBox(boxAll, dummy)
+
+	// -------------------- установка значений
+
+	// если Enter был нажат, значит ввод закончен
+	go func() {
+		for {
+			if entrySpeed1.Entered || entrySpeed2.Entered {
+				err = sp.SetSpeed(speed1, speed2)
+				if err != nil {
+					fmt.Printf("Ошибка установки скорости")
+				}
+				entrySpeed1.Entered = false
+				entrySpeed2.Entered = false
+			}
+
+			if entryAccel1.Entered || entryAccel2.Entered {
+				err = sp.SetAcceleration(accel1, accel2)
+				if err != nil {
+					fmt.Printf("Ошибка установки ускорения\n")
+				}
+				entryAccel1.Entered = false
+				entryAccel2.Entered = false
+			}
+
+			time.Sleep(time.Second)
+		}
+	}()
 
 	return box //container.New(layout.NewGridWrapLayout(fyne.NewSize(450, 850)), box)
 }
