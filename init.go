@@ -22,10 +22,6 @@ var channel1 ipk.PressureOutput // sensorTM Переменная для зада
 var channel2 ipk.PressureOutput // sensorTC Переменная для задания давления ТЦ в кгс/см² (канал 2)
 var channel3 ipk.PressureOutput // sensorGR Переменная для задания давления GR в кгс/см²
 
-// бу4
-var channelN8 *ipk.DAC
-var channelN9 *ipk.DAC
-
 func initIPK() (err error) {
 
 	ipkBox.AnalogDev = new(ipk.AnalogDevice)

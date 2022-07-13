@@ -87,7 +87,7 @@ func main() {
 	top := top()
 	box3 := container.NewVSplit(top, box2)
 
-	boxCAN := dataCAN()
+	boxCAN := getListCAN()
 	box := container.NewHSplit(box3, boxCAN)
 
 	w.SetContent(box)
@@ -137,106 +137,78 @@ func abautProgramm() {
 	w.Show() // ShowAndRun -- panic!
 }
 
-//---------------------------------------------------------------------------
-// Данные CAN
-
-const (
-	idSpeed1        = 0x5E5
-	idSpeed2        = 0x5E6
-	idAcceleration1 = 0x5E3
-	idAcceleration2 = 0x5E4
-	idPressure      = 0x5FC
-	idDistance      = 0x5C6
-	idTimeBU        = 0xC7
-	idALS           = 0x50
-	idBin           = 0x5F8
-	idCodeIF        = 0x5C5
-)
-
+//---------------------------------------------------------------------------//
+// 								Данные CAN
+//---------------------------------------------------------------------------//
 var mapDataCAN map[uint32][8]byte
-var idListCAN = map[uint32]bool{
-	idSpeed1: true,
-	idSpeed2: true,
-	/*idAcceleration1: false,
-	idAcceleration2: false,
-	idPressure:      true,
-	idDistance:      false,
-	idTimeBU:        false,
-	idALS:           false,
-	idBin:           false,
-	idCodeIF:        false,*/
-}
 
-func getMsgCAN() {
-	waitTime := time.Millisecond * 100
-
-	msg, err := can25.GetMsgByIDList(idListCAN, waitTime)
-	if err == nil {
-		mapDataCAN[msg.ID] = msg.Data
-	}
-}
-
-func dataCANToString(id uint32, data [8]byte) (str string) {
-
-	switch id {
-	case idSpeed1, idSpeed2:
-		f := byteToSpeed(data)
-		if id == idSpeed1 {
-			str = fmt.Sprintf("Скорость 1 (км/ч): %.0f", f)
-		} else {
-			str = fmt.Sprintf("Скорость 2 (км/ч): %.0f", f)
-		}
-
-	case idAcceleration1, idAcceleration2:
-		f := byteToAcceleration(data)
-		if id == idAcceleration1 {
-			str = fmt.Sprintf("Ускорение 1 (м/с²): %.0f", f)
-		} else {
-			str = fmt.Sprintf("Ускорение 2 (м/с²): %.0f", f)
-		}
-
-	case 1, 2, 3:
-		tm, tc, gr := byteToPressure(data)
-
-		if id == 1 {
-			str = fmt.Sprintf("Давление ТМ (кг/см²): %.0f", tm)
-		} else if id == 2 {
-			str = fmt.Sprintf("Давление ТЦ (кг/см²): %.0f", tc)
-		} else if id == 3 {
-			str = fmt.Sprintf("Давление ГР (кг/см²): %.0f", gr)
-		}
-
-	case idDistance:
-		u := byteDistance(data)
-		str = fmt.Sprintf("Дистанция (м): %d", u)
-
-	case idTimeBU:
-		t := byteToTimeBU(data)
-		str = fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04"))
-
-	default:
-	}
-	return
-}
-
-func dataCAN() fyne.CanvasObject {
+func getListCAN() fyne.CanvasObject {
 	mapDataCAN = make(map[uint32][8]byte) // скопище байтов из CAN
 
 	var style fyne.TextStyle
 	style.Bold = true
 	text := widget.NewLabelWithStyle("Данные CAN:", fyne.TextAlignCenter, style)
 
-	labelTimeBU := widget.NewLabel("")
-	labelSpeed1 := widget.NewLabel("")
-	labelSpeed2 := widget.NewLabel("")
-	labelAcceleration1 := widget.NewLabel("")
-	labelAcceleration2 := widget.NewLabel("")
-	labelPress1 := widget.NewLabel("")
-	labelPress2 := widget.NewLabel("")
-	labelPress3 := widget.NewLabel("")
-	labelDistance := widget.NewLabel("")
+	// получение данных
+	getDataCAN()
 
-	timeCheckDone := make(chan int) // признак того что результат готов
+	data := []string{
+		"время",      // 0
+		"скорость 1", // 1
+		"скорость 2",
+		"давление 1", // 3
+		"давление 2", // 4
+		"давление 3", // 5
+		"дистанция",  // 6
+		"алс",        // 7
+	}
+
+	list := widget.NewList(
+		func() int {
+			return len(data)
+		},
+		func() fyne.CanvasObject {
+			var style fyne.TextStyle
+			style.Monospace = true
+			temp := widget.NewLabelWithStyle("temp", fyne.TextAlignLeading, style)
+			return temp
+			// return widget.NewLabel("template")
+		},
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			o.(*widget.Label).SetText(data[i])
+		})
+
+	// обновление данных
+	go func() {
+		for {
+			t := byteToTimeBU(mapDataCAN[idTimeBU])
+			data[0] = fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04"))
+			data[1] = fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1]))
+			data[2] = fmt.Sprintf("%-22s %.1f", "Скорость 2 (км/ч):", byteToSpeed(mapDataCAN[idSpeed2]))
+			tm, tc, gr := byteToPressure(mapDataCAN[idPressure])
+			data[3] = fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm)
+			data[4] = fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc)
+			data[5] = fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr)
+			u := byteDistance(mapDataCAN[idDistance])
+			data[6] = fmt.Sprintf("%-22s %d", "Дистанция (м):", u)
+			_, str := byteToALS(mapDataCAN[idALS])
+			data[7] = fmt.Sprintf("%-22s %s", "АЛС:", str)
+
+			list.Refresh()
+			time.Sleep(time.Second)
+		}
+	}()
+
+	// boxList := container.NewMax(list)
+	boxList := container.New(layout.NewGridWrapLayout(fyne.NewSize(280, 600)), list)
+	box := container.NewVBox(text, boxList)
+
+	return box
+}
+
+func getDataCAN() {
+
+	// timeCheckDone := make(chan int) // признак того что результат готов
 
 	go func() {
 		stop := false
@@ -259,38 +231,15 @@ func dataCAN() fyne.CanvasObject {
 			}
 
 			// обновление данных
-			labelTimeBU.SetText(dataCANToString(idTimeBU, mapDataCAN[idTimeBU])) // желательно прочерк если нет в CAN
-			labelSpeed1.SetText(dataCANToString(idSpeed1, mapDataCAN[idSpeed1]))
-			labelSpeed2.SetText(dataCANToString(idSpeed2, mapDataCAN[idSpeed2]))
-			labelAcceleration1.SetText(dataCANToString(idAcceleration1, mapDataCAN[idAcceleration1]))
-			labelAcceleration2.SetText(dataCANToString(idAcceleration2, mapDataCAN[idAcceleration2]))
-			labelPress1.SetText(dataCANToString(1, mapDataCAN[idPressure]))
-			labelPress2.SetText(dataCANToString(2, mapDataCAN[idPressure]))
-			labelPress3.SetText(dataCANToString(3, mapDataCAN[idPressure]))
-			labelDistance.SetText(dataCANToString(idDistance, mapDataCAN[idDistance]))
-			// time.Sleep(200 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
-		timeCheckDone <- 1
+		// timeCheckDone <- 1
 	}()
-
-	box := container.NewVBox(text,
-		labelSpeed1,
-		labelSpeed2,
-		labelAcceleration1,
-		labelAcceleration2,
-		labelPress1,
-		labelPress2,
-		labelPress3,
-		labelDistance,
-		labelTimeBU,
-	)
-
-	// box := container.New(layout.NewGridWrapLayout(fyne.NewSize(300, 800)), box1)
-	return container.NewVScroll(box)
 }
 
-//---------------------------------------------------------------------------
-// ИНТЕРФЕЙС
+//---------------------------------------------------------------------------//
+// 						ИНТЕРФЕЙС: ФАС, ФЧС
+//---------------------------------------------------------------------------//
 
 // Скорость, дистанция, давление
 func speed() fyne.CanvasObject {
@@ -609,6 +558,10 @@ func speed() fyne.CanvasObject {
 	return box //container.New(layout.NewGridWrapLayout(fyne.NewSize(450, 850)), box)
 }
 
+//---------------------------------------------------------------------------//
+// 						ИНТЕРФЕЙС: ФДС сигналы
+//---------------------------------------------------------------------------//
+
 // коды РЦ (Сигналы ИФ) +
 // Вых.БУ: 50В, 10В
 func outputSignals() fyne.CanvasObject {
@@ -616,7 +569,7 @@ func outputSignals() fyne.CanvasObject {
 	var err error
 	var style fyne.TextStyle
 	style.Bold = true
-	labelCode := widget.NewLabelWithStyle("Коды РЦ:", fyne.TextAlignCenter, style)
+	labelCode := widget.NewLabelWithStyle("Коды РЦ:      ", fyne.TextAlignCenter, style)
 
 	code := []string{"Нет",
 		"КЖ 1.6",
@@ -653,110 +606,110 @@ func outputSignals() fyne.CanvasObject {
 	boxCode := container.NewVBox(labelCode, radio)
 
 	labelOut := widget.NewLabelWithStyle("Вых.БУ:", fyne.TextAlignCenter, style)
-	// 50V
+	// 10V
 	checkG := widget.NewCheck("З", func(on bool) {
 		if on {
-			err = fds.Set50V(0, true)
+			err = fds.Set10V(0, true)
 		} else {
-			err = fds.Set50V(0, false)
+			err = fds.Set10V(0, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 0=%v З (%v)\n", on, err)
 	})
 	checkY := widget.NewCheck("Ж", func(on bool) {
 		if on {
-			err = fds.Set50V(1, true)
+			err = fds.Set10V(1, true)
 		} else {
-			err = fds.Set50V(1, false)
+			err = fds.Set10V(1, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 1=%v Ж(%v)\n", on, err)
 	})
 	checkRY := widget.NewCheck("КЖ", func(on bool) {
 		if on {
-			err = fds.Set50V(2, true)
+			err = fds.Set10V(2, true)
 		} else {
-			err = fds.Set50V(2, false)
+			err = fds.Set10V(2, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 2=%v КЖ (%v)\n", on, err)
 	})
 	checkR := widget.NewCheck("К", func(on bool) {
 		if on {
-			err = fds.Set50V(3, true)
+			err = fds.Set10V(3, true)
 		} else {
-			err = fds.Set50V(3, false)
+			err = fds.Set10V(3, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 3=%v К (%v)\n", on, err)
 	})
 	checkW := widget.NewCheck("Б", func(on bool) {
 		if on {
-			err = fds.Set50V(4, true)
+			err = fds.Set10V(4, true)
 		} else {
-			err = fds.Set50V(4, false)
+			err = fds.Set10V(4, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 4=%v Б (%v)\n", on, err)
 	})
 	checkEPK1 := widget.NewCheck("ЭПК1", func(on bool) {
 		if on {
-			err = fds.Set50V(5, true)
+			err = fds.Set10V(5, true)
 		} else {
-			err = fds.Set50V(5, false)
+			err = fds.Set10V(5, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 5=%v ЭПК1 (%v)\n", on, err)
 	})
 	checkIF := widget.NewCheck("ИФ", func(on bool) {
 		if on {
-			err = fds.Set50V(6, true)
+			err = fds.Set10V(6, true)
 		} else {
-			err = fds.Set50V(6, false)
+			err = fds.Set10V(6, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 6=%v ИФ (%v)\n", on, err)
 	})
 	checkTracktion := widget.NewCheck("Тяга", func(on bool) {
 		if on {
-			err = fds.Set50V(7, true)
+			err = fds.Set10V(7, true)
 		} else {
-			err = fds.Set50V(7, false)
+			err = fds.Set10V(7, false)
 		}
 		fmt.Printf("Двоичные выходы 50В: 7=%v Тяга (%v)\n", on, err)
 	})
 	boxOut50V := container.NewVBox(checkG, checkY, checkRY, checkR, checkW, checkEPK1, checkIF, checkTracktion)
-	// 10V
+	// 50V
 	checkLP := widget.NewCheck("ЛП", func(on bool) {
 		if on {
-			err = fds.Set10V(1, true)
+			err = fds.Set50V(1, true)
 		} else {
-			err = fds.Set10V(1, false)
+			err = fds.Set50V(1, false)
 		}
 		fmt.Printf("Двоичные выходы 10В: 1=%v ЛП (%v)\n", on, err)
 	})
 	checkButtonUhod := widget.NewCheck("кн.Уход", func(on bool) {
 		if on {
-			err = fds.Set10V(3, true)
+			err = fds.Set50V(3, true)
 		} else {
-			err = fds.Set10V(3, false)
+			err = fds.Set50V(3, false)
 		}
 		fmt.Printf("Двоичные выходы 10В: 3=%v кн.Уход (%v)\n", on, err)
 	})
 	checkEPK := widget.NewCheck("ЭПК", func(on bool) {
 		if on {
-			err = fds.Set10V(5, true)
+			err = fds.Set50V(5, true)
 		} else {
-			err = fds.Set10V(5, false)
+			err = fds.Set50V(5, false)
 		}
 		fmt.Printf("Двоичные выходы 10В: 5=%v ЭПК (%v)\n", on, err)
 	})
 	checkPowerBU := widget.NewCheck("Пит.БУ", func(on bool) {
 		if on {
-			err = fds.Set10V(7, true)
+			err = fds.Set50V(7, true)
 		} else {
-			err = fds.Set10V(7, false)
+			err = fds.Set50V(7, false)
 		}
 		fmt.Printf("Двоичные выходы 10В: 7=%v Пит.БУ (%v)\n", on, err)
 	})
 	checkKeyEPK := widget.NewCheck("Ключ ЭПК", func(on bool) {
 		if on {
-			err = fds.Set10V(9, true)
+			err = fds.Set50V(9, true)
 		} else {
-			err = fds.Set10V(9, false)
+			err = fds.Set50V(9, false)
 		}
 		fmt.Printf("Двоичные выходы 10В: 9=%v Ключ ЭПК (%v)\n", on, err)
 	})
@@ -795,6 +748,10 @@ func inputSignals() fyne.CanvasObject {
 
 	return container.NewVBox(labelRelay, box)
 }
+
+//---------------------------------------------------------------------------//
+// 					ИНТЕРФЕЙС: верх
+//---------------------------------------------------------------------------//
 
 func top() fyne.CanvasObject {
 

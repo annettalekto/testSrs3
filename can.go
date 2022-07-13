@@ -5,34 +5,17 @@ import (
 	"time"
 )
 
-// import (
-// 	"encoding/binary"
-// 	"errors"
-// 	"fmt"
-// 	"time"
-
-// 	"github.com/amdf/ixxatvci3/candev"
-// )
-
-// /*
-// 0x50 Состояние сигналов АЛС; 8 байт
-// 6-й байт: биты 0-3 коды огней светофора многозначной АЛС,
-// Коды:  0 – белый, 1 - красный, 2 – КЖ, 3 – желтый, 4 – зеленый, 5-7 – нет огня
-// */
-
-// // получить код АЛС
-// func canGetALS() (als int, err error) {
-// 	var msg candev.Message
-
-// 	if msg, err = can25.GetMsgByID(0x50, 5*time.Second); err == nil {
-// 		als = int(msg.Data[5] & 0xF)
-// 		fmt.Printf("CAN Cигнал АЛС: %X, %v\n", als, err)
-// 	} else {
-// 		err = errors.New("canGetALS(): " + err.Error())
-// 		// lg.Error(fmt.Sprintf("%v\r\n", err))
-// 	}
-// 	return
-// }
+const (
+	idTimeBU   = 0xC7
+	idSpeed1   = 0x5E5
+	idSpeed2   = 0x5E6
+	idPressure = 0x5FC
+	idDistance = 0x5C6
+	idALS      = 0x50
+	// todo
+	idBin    = 0x5F8
+	idCodeIF = 0x5C5
+)
 
 // /*
 // Значения двоичных сигналов 5F8Н Длина: 4 байта.
@@ -79,6 +62,34 @@ import (
 
 // 	return
 // }
+
+// 0x50 Состояние сигналов АЛС; 8 байт
+// 6-й байт: биты 0-3 коды огней светофора многозначной АЛС,
+// Коды:  0 – белый, 1 - красный, 2 – КЖ, 3 – желтый, 4 – зеленый, 5-7 – нет огня
+//
+
+// получить код АЛС
+func byteToALS(data [8]byte) (als int, str string) {
+
+	als = int(data[5] & 0xF)
+	switch als {
+	case 0:
+		str = "0=Б"
+	case 1:
+		str = "1=К"
+	case 2:
+		str = "2=KЖ"
+	case 3:
+		str = "3=Ж"
+	case 4:
+		str = "4=3"
+	case 5, 6, 7:
+		str = "нет"
+	}
+	// fmt.Printf("CAN Cигнал АЛС: %X\n", als)
+
+	return
+}
 
 /* В MiniMon байты переставлены
 Значение скорости. Длина: 2 байта.
