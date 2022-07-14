@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/amdf/ipk"
+	"github.com/amdf/ixxatvci3/candev"
 )
 
 /* todo
@@ -141,26 +142,54 @@ func abautProgramm() {
 // 								Данные CAN
 //---------------------------------------------------------------------------//
 var mapDataCAN map[uint32][8]byte
+var buErrors map[uint16]bool
+
+func safeError(data [8]byte) {
+	var code uint16
+
+	if data[0] == 1 { // код ошибки установлен
+		code = (uint16(data[2]) << 8) | uint16(data[1])
+	}
+
+	if _, ok := buErrors[code]; !ok {
+		buErrors[code] = true
+	}
+}
+
+func resetErrors() {
+	for v := range buErrors {
+		delete(buErrors, v)
+	}
+}
 
 func getListCAN() fyne.CanvasObject {
 	mapDataCAN = make(map[uint32][8]byte) // скопище байтов из CAN
+	buErrors = make(map[uint16]bool)      //
 
 	var style fyne.TextStyle
 	style.Bold = true
 	text := widget.NewLabelWithStyle("Данные CAN:", fyne.TextAlignCenter, style)
 
 	// получение данных
+	requestCAN()
 	getDataCAN()
 
 	data := []string{
 		"время",      // 0
 		"скорость 1", // 1
 		"скорость 2",
-		"давление 1", // 3
-		"давление 2", // 4
-		"давление 3", // 5
-		"дистанция",  // 6
-		"алс",        // 7
+		"давление 1",  // 3
+		"давление 2",  // 4
+		"давление 3",  // 5
+		"дистанция",   // 6
+		"алс",         // 7
+		"ИФ",          // 8
+		"bin: вперед", // 9
+		"bin: назад",  // 10
+		"bin: тяга",   // 11
+		"инд 1",       // 12
+		"инд 2",       // 13
+
 	}
 
 	list := widget.NewList(
@@ -190,9 +219,40 @@ func getListCAN() fyne.CanvasObject {
 			data[4] = fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc)
 			data[5] = fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr)
 			u := byteDistance(mapDataCAN[idDistance])
-			data[6] = fmt.Sprintf("%-22s %d", "Дистанция (м):", u)
+			data[6] = fmt.Sprintf("%-22s %d", "Дистанция (м):", u) // число на 22
 			_, str := byteToALS(mapDataCAN[idALS])
-			data[7] = fmt.Sprintf("%-22s %s", "АЛС:", str)
+			data[7] = fmt.Sprintf("%-16s %s", "АЛС:", str) // текст на 16
+			_, _, _, str = byteToCodeIF(mapDataCAN[idCodeIF])
+			data[8] = fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str)
+			canmsg := mapDataCAN[idBin]
+			if (canmsg[1] & 0x01) == 0x01 {
+				str = "установлено"
+			} else {
+				str = "сброшено"
+			}
+			data[9] = fmt.Sprintf("%-16s %s", "Движение вперед:", str)
+			if (canmsg[1] & 0x02) == 0x02 {
+				str = "установлено"
+			} else {
+				str = "сброшено"
+			}
+			data[10] = fmt.Sprintf("%-16s %s", "Движение назад:", str)
+			if (canmsg[1] & 0x10) == 0x10 {
+				str = "установлен"
+			} else {
+				str = "сброшен"
+			}
+			data[11] = fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str)
+
+			str = byteToDigitalIndicator(mapDataCAN[idDigitalInd])
+			data[12] = fmt.Sprintf("%-16s %s", "Осн. инд.:", str)
+			str = byteToAddIndicator(mapDataCAN[idAddInd])
+			data[13] = fmt.Sprintf("%-16s %s", "Доп. инд.:", str)
+
+			for e := range buErrors {
+				data = append(data, fmt.Sprintf("H%d", e))
+			}
+			resetErrors() //todo выводить все ошибки, а менять только значение установлено-сброшено
 
 			list.Refresh()
 			time.Sleep(time.Second)
@@ -204,6 +264,32 @@ func getListCAN() fyne.CanvasObject {
 	box := container.NewVBox(text, boxList)
 
 	return box
+}
+
+func requestCAN() {
+	go func() {
+		for {
+			var msg candev.Message
+			msg.ID = idErrors
+			msg.Rtr = true
+			can25.Send(msg)
+			time.Sleep(time.Millisecond * 100)
+
+			msg.ID = idStatusBI
+			msg.Rtr = false
+			msg.Len = 4
+			msg.Data = [8]byte{0xFF, 0, 0, 0x01}
+			can25.Send(msg)
+			time.Sleep(time.Millisecond * 100)
+
+			// msg.ID = idBI
+			// msg.Len = 4
+			// msg.Data = [8]byte{0x04, 0xFF, 0, 0}
+			// can25.Send(msg)
+
+			time.Sleep(time.Second)
+		}
+	}()
 }
 
 func getDataCAN() {
@@ -222,7 +308,16 @@ func getDataCAN() {
 				if !ok { //при закрытом канале
 					stop = true
 				} else {
-					mapDataCAN[msg.ID] = msg.Data
+					if msg.ID == idErrors {
+						safeError(msg.Data)
+					} else if msg.ID == idBI && msg.Data[0] == 0x01 {
+						mapDataCAN[idDigitalInd] = msg.Data
+					} else if msg.ID == idBI && msg.Data[0] == 0x02 {
+						mapDataCAN[idAddInd] = msg.Data
+					} else {
+						mapDataCAN[msg.ID] = msg.Data
+					}
+
 					// defer can25.CloseMsgChannelCopy(idx)
 
 				}
