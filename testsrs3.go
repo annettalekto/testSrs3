@@ -141,8 +141,8 @@ func abautProgramm() {
 //---------------------------------------------------------------------------//
 // 								Данные CAN
 //---------------------------------------------------------------------------//
-var mapDataCAN map[uint32][8]byte
-var buErrors map[uint16]bool
+var mapDataCAN = make(map[uint32][8]byte)
+var buErrors = make(map[uint16]bool)
 
 func safeError(data [8]byte) {
 	var code uint16
@@ -163,8 +163,8 @@ func resetErrors() {
 }
 
 func getListCAN() fyne.CanvasObject {
-	mapDataCAN = make(map[uint32][8]byte) // скопище байтов из CAN
-	buErrors = make(map[uint16]bool)      //
+	// mapDataCAN = make(map[uint32][8]byte) // скопище байтов из CAN
+	// buErrors = make(map[uint16]bool)      //
 
 	var style fyne.TextStyle
 	style.Bold = true
@@ -189,7 +189,7 @@ func getListCAN() fyne.CanvasObject {
 		"bin: тяга",   // 11
 		"инд 1",       // 12
 		"инд 2",       // 13
-
+		// + ош
 	}
 
 	list := widget.NewList(
@@ -230,7 +230,7 @@ func getListCAN() fyne.CanvasObject {
 			} else {
 				str = "сброшено"
 			}
-			data[9] = fmt.Sprintf("%-16s %s", "Движение вперед:", str)
+			data[9] = fmt.Sprintf("%-16s %s", "Движение вперёд:", str)
 			if (canmsg[1] & 0x02) == 0x02 {
 				str = "установлено"
 			} else {
@@ -414,12 +414,12 @@ func speed() fyne.CanvasObject {
 	}
 
 	// ---------------------- обработка направления
-	directionChoice := []string{"Вперед", "Назад"}
+	directionChoice := []string{"Вперёд", "Назад"}
 	var selectDirection1, selectDirection2 *widget.Select
 
 	selectDirection1 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
-		if s == "Вперед" {
+		if s == "Вперёд" {
 			direction1 = ipk.MotionOnward
 			if !sep && selectDirection2.SelectedIndex() != 0 { // бесконечный вызов!
 				selectDirection2.SetSelectedIndex(0)
@@ -434,7 +434,7 @@ func speed() fyne.CanvasObject {
 	})
 	selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
-		if s == "Вперед" {
+		if s == "Вперёд" {
 			direction2 = ipk.MotionOnward
 			if !sep && selectDirection2.SelectedIndex() != 0 {
 				selectDirection2.SetSelectedIndex(0)
@@ -448,8 +448,8 @@ func speed() fyne.CanvasObject {
 		sp.SetMotion(direction2)
 	})
 
-	selectDirection1.SetSelectedIndex(0) //"Вперед")
-	selectDirection2.SetSelectedIndex(0) //"Вперед")
+	selectDirection1.SetSelectedIndex(0) //"Вперёд")
+	selectDirection2.SetSelectedIndex(0) //"Вперёд")
 
 	box1 := container.NewGridWithColumns(
 		3,
@@ -776,13 +776,13 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: 1=%v ЛП (%v)\n", on, err)
 	})
-	checkButtonUhod := widget.NewCheck("кн.Уход", func(on bool) {
+	checkButtonUhod := widget.NewCheck("кн. Уход", func(on bool) {
 		if on {
 			err = fds.Set50V(3, true)
 		} else {
 			err = fds.Set50V(3, false)
 		}
-		fmt.Printf("Двоичные выходы 10В: 3=%v кн.Уход (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: 3=%v кн. Уход (%v)\n", on, err)
 	})
 	checkEPK := widget.NewCheck("ЭПК", func(on bool) {
 		if on {
@@ -800,7 +800,7 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: 7=%v Пит.БУ (%v)\n", on, err)
 	})
-	checkKeyEPK := widget.NewCheck("Ключ ЭПК", func(on bool) {
+	checkKeyEPK := widget.NewCheck("Ключ ЭПК ", func(on bool) {
 		if on {
 			err = fds.Set50V(9, true)
 		} else {
@@ -845,10 +845,16 @@ func inputSignals() fyne.CanvasObject {
 }
 
 //---------------------------------------------------------------------------//
-// 					ИНТЕРФЕЙС: верх
+// 								ИНТЕРФЕЙС: верх
 //---------------------------------------------------------------------------//
 
 func top() fyne.CanvasObject {
+
+	deviceChoice := []string{"БУ-3П", "БУ-3ПА", "БУ-3ПВ", "БУ-4"}
+	var selectDevice *widget.Select
+	selectDevice = widget.NewSelect(deviceChoice, func(s string) {
+	})
+	selectDevice.SetSelectedIndex(2)
 
 	powerKPD := binding.NewBool() // питание включается при старте? todo
 	powerKPD.Set(true)            // устанавливается в начале
@@ -858,8 +864,47 @@ func top() fyne.CanvasObject {
 	turn.Set(false)
 	checkTurt := widget.NewCheckWithData("Режим обслуживания", turn)
 
-	box := container.NewHBox(checkPower, checkTurt)
-	return container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
+	buttonUPP := widget.NewButton("  УПП  ", func() {
+		showFormUPP()
+	})
+
+	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, checkTurt, layout.NewSpacer(), buttonUPP)
+
+	// box := container.NewHBox(selectDevice, checkPower, checkTurt, buttonUPP)
+	return box // container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
 }
 
-//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------//
+
+// записать в map названия упп для текущего блока. По этой длинне будут все циклы
+// записать в другую map предустановленные значения этих упп
+// считать значения установленные в блоке
+// отрисовать таблицу с установленными значениями
+
+// ф вывода на экран предустановок
+// ф вывода на экран значений из кан
+// ф чтение формы в мапу
+// ф записи того что есть на форме
+
+func showFormUPP() {
+	declareParams() // заранее
+
+	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
+	w.Resize(fyne.NewSize(800, 600))
+	w.SetFixedSize(true)
+	w.CenterOnScreen()
+
+	boxUPP := container.NewVBox()
+
+	for x, str := range params {
+
+		paramEntry[x] = widget.NewEntry()
+		paramEntry[x].SetText("0") //сюда предустановленное значение?
+		line := container.NewHBox(widget.NewLabel(str), layout.NewSpacer(), paramEntry[x])
+		boxUPP.Add(line)
+	}
+
+	w.SetContent(container.NewVScroll(boxUPP))
+	w.Show() // ShowAndRun -- panic!
+
+}
