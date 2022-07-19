@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strconv"
 	"time"
 
@@ -19,11 +20,6 @@ import (
 	"github.com/amdf/ipk"
 	"github.com/amdf/ixxatvci3/candev"
 )
-
-/* todo
-+ при вводе цифр в entry как определить конец ввода? Как узнать о нажатии клавиши?
-- при вводе цифр все запятые менять на точки, сделать общую функцию
-*/
 
 var gVersion, gYear, gProgramName string
 
@@ -811,7 +807,7 @@ func outputSignals() fyne.CanvasObject {
 	boxOut10V := container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkPowerBU, checkKeyEPK)
 
 	boxOut := container.NewVBox(labelOut, boxOut10V, boxOut50V)
-	box := container.NewHSplit(boxOut, boxCode)
+	box := container.NewHBox(boxOut, boxCode)
 
 	return box
 }
@@ -886,6 +882,12 @@ func top() fyne.CanvasObject {
 // ф чтение формы в мапу
 // ф записи того что есть на форме
 
+type myconf struct {
+	band1 string
+	band2 string
+	diam  string
+}
+
 func showFormUPP() {
 	declareParams() // заранее
 
@@ -894,17 +896,38 @@ func showFormUPP() {
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	boxUPP := container.NewVBox()
+	upp := container.NewVBox()
 
-	for x, str := range params {
+	var val []int
+	for v := range params {
+		val = append(val, v)
+	}
+	sort.Ints(val)
+
+	for _, x := range val {
+		str := params[x]
+
+		paramName := widget.NewLabel(fmt.Sprintf("%4d %s", x, str))
+		paramName.TextStyle.Monospace = true
 
 		paramEntry[x] = widget.NewEntry()
-		paramEntry[x].SetText("0") //сюда предустановленное значение?
-		line := container.NewHBox(widget.NewLabel(str), layout.NewSpacer(), paramEntry[x])
-		boxUPP.Add(line)
+		paramEntry[x].TextStyle.Monospace = true
+		paramEntry[x].SetText(paramsValue[x])
+
+		line := container.NewGridWithColumns(2, paramName, paramEntry[x])
+		upp.Add(line)
 	}
+	boxScrollUPP := container.NewVScroll(upp)                                                           // + крутилку
+	boxScrollLayoutUPP := container.New(layout.NewGridWrapLayout(fyne.NewSize(770, 550)), boxScrollUPP) // чтобы не расползались, нужно место для кнопок
 
-	w.SetContent(container.NewVScroll(boxUPP))
+	readCAN := widget.NewButton("CAN", nil)
+	table := widget.NewButton("заполнить", nil)
+	write := widget.NewButton("записать", nil)
+	boxButtons := container.NewHBox(readCAN, table, layout.NewSpacer(), write)
+	boxButtonsLayout := container.New(layout.NewGridWrapLayout(fyne.NewSize(800, 35)), boxButtons) // чтобы не расползались кнопки при растягивании бокса
+
+	box := container.NewVBox(boxScrollLayoutUPP, boxButtonsLayout)
+
+	w.SetContent(box)
 	w.Show() // ShowAndRun -- panic!
-
 }
