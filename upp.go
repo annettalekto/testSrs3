@@ -3,8 +3,8 @@ package main
 import "fyne.io/fyne/v2/widget"
 
 // 3пв
-var params = make(map[int]string)      //просто список параметров
-var paramsValue = make(map[int]string) //значения
+var params = make(map[int]string)      // просто список параметров todo для всех БУ
+var paramsValue = make(map[int]string) // значения из toml для подгрузки при старте
 
 var paramEntry = make(map[int]*widget.Entry)
 
@@ -81,3 +81,31 @@ func declareParams() {
 	paramsValue[26] = "4"
 
 }
+
+/*
+	todo
+	1 Выводить сохраненное в файл при старте
+	2 Считывать данные с БУ
+	3 Записывать данные с формы в БУ
+
+1
+- взять данные из файла
+- отобразить на экране как есть
+toml -> entry
+f сохранения в файл
+f выгрузки из файла в форму
+
+2
+Перейти в режим обслуживания?
+Считать данные из БУ в map
+Вывести на экран полученное (или ошибку считывания)
+Выйти из режима обслуживания?
+map -> entry
+
+3
+Взять из формы значения
+Проверить их
+Записать в БУ
+Вывести на экран результат записи ok/error
+
+*/

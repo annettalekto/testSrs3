@@ -23,9 +23,45 @@ import (
 
 var gVersion, gYear, gProgramName string
 
+// Conf s;dlgk
+type Conf struct {
+	Title string
+	Upp   upp `toml:"upp"`
+}
+
+type upp struct {
+	data map[string]string
+	// Band1 string
+	// Band2 string
+	// Diam  string
+}
+
+//
+// conf := new(Conf)
+// if _, err := toml.DecodeFile("test.toml", conf); err != nil {
+// 	fmt.Println(err)
+// } else {
+// 	fmt.Println(conf.Data.Diam)
+// }
+//
+
 func main() {
 	gVersion, gYear = "1.0.0", "2022 г." // todo править при изменениях
 	gProgramName = "Электронная имитация параметров"
+	var err error
+
+	// var s struct {
+	// 	FOO struct {
+	// 		Passwords map[string]string
+	// 	}
+	// }
+
+	// // conf := new(Conf)
+	// _, err = toml.DecodeFile("upp.toml", &s)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// fmt.Printf("%v", s.FOO.Passwords["2"])
 
 	// Инит
 	debugGetUPP()
@@ -33,7 +69,7 @@ func main() {
 	// initDevice()
 	// запросить данные УПП!
 
-	err := can25.Init(0x1F, 0x16)
+	err = can25.Init(0x1F, 0x16)
 	if err != nil {
 		fmt.Printf("Ошибка инициализации CAN: %v\n", err)
 		// return // todo запускать форму при отсутствие can?
@@ -871,22 +907,6 @@ func top() fyne.CanvasObject {
 }
 
 //---------------------------------------------------------------------------//
-
-// записать в map названия упп для текущего блока. По этой длинне будут все циклы
-// записать в другую map предустановленные значения этих упп
-// считать значения установленные в блоке
-// отрисовать таблицу с установленными значениями
-
-// ф вывода на экран предустановок
-// ф вывода на экран значений из кан
-// ф чтение формы в мапу
-// ф записи того что есть на форме
-
-type myconf struct {
-	band1 string
-	band2 string
-	diam  string
-}
 
 func showFormUPP() {
 	declareParams() // заранее
