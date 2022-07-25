@@ -1,6 +1,12 @@
 package main
 
-import "fyne.io/fyne/v2/widget"
+import (
+	"fmt"
+	"strconv"
+
+	"fyne.io/fyne/v2/widget"
+	"github.com/BurntSushi/toml"
+)
 
 // 3пв
 var params = make(map[int]string)      // просто список параметров todo для всех БУ
@@ -109,3 +115,87 @@ map -> entry
 Вывести на экран результат записи ok/error
 
 */
+
+// Conf s;dlgk
+// type Conf struct {
+// 	Title string
+// 	Upp   upp `toml:"upp"`
+// }
+
+// type upp struct {
+// 	data map[string]string
+// 	// Band1 string
+// 	// Band2 string
+// 	// Diam  string
+// }
+
+//
+// conf := new(Conf)
+// if _, err := toml.DecodeFile("test.toml", conf); err != nil {
+// 	fmt.Println(err)
+// } else {
+// 	fmt.Println(conf.Data.Diam)
+// }
+//
+
+// var s struct {
+// 	FOO struct {
+// 		Passwords map[string]string
+// 	}
+// }
+
+// // conf := new(Conf)
+// _, err = toml.DecodeFile("upp.toml", &s)
+// if err != nil {
+// 	fmt.Println(err)
+// }
+// fmt.Printf("%v", s.FOO.Passwords["2"])
+
+func getTomlUPP() (result map[int]string) {
+	var err error
+	var data struct {
+		UPP struct {
+			BU3pv map[string]string
+		}
+	}
+	result = make(map[int]string)
+
+	_, err = toml.DecodeFile("upp.toml", &data)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Printf("%v", data.UPP.BU3pv["2"])
+
+	for i, t := range data.UPP.BU3pv {
+		val, _ := strconv.Atoi(i)
+		result[val] = t
+	}
+	return
+}
+
+/*
+func readToml(val map[int]string) {
+	var data struct {
+		UPP struct {
+			BU3pv map[string]string
+		}
+	}
+
+	for x, val := range val {
+		data.UPP.BU3pv[fmt.Sprintf("%d", x)] = val
+	}
+
+	var buffer bytes.Buffer
+
+	err := toml.NewEncoder(&buffer).Encode(&val)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Printf("%v\n", buffer.String())
+	}
+
+	err = ioutil.WriteFile("debug.toml", buffer.Bytes(), 0644)
+	if err != nil {
+		fmt.Println(err)
+	}
+}*/

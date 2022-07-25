@@ -23,51 +23,20 @@ import (
 
 var gVersion, gYear, gProgramName string
 
-// Conf s;dlgk
-type Conf struct {
-	Title string
-	Upp   upp `toml:"upp"`
-}
-
-type upp struct {
-	data map[string]string
-	// Band1 string
-	// Band2 string
-	// Diam  string
-}
-
-//
-// conf := new(Conf)
-// if _, err := toml.DecodeFile("test.toml", conf); err != nil {
-// 	fmt.Println(err)
-// } else {
-// 	fmt.Println(conf.Data.Diam)
-// }
-//
-
 func main() {
 	gVersion, gYear = "1.0.0", "2022 г." // todo править при изменениях
 	gProgramName = "Электронная имитация параметров"
 	var err error
 
-	// var s struct {
-	// 	FOO struct {
-	// 		Passwords map[string]string
-	// 	}
-	// }
-
-	// // conf := new(Conf)
-	// _, err = toml.DecodeFile("upp.toml", &s)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// fmt.Printf("%v", s.FOO.Passwords["2"])
-
 	// Инит
-	debugGetUPP()
+	declareParams()
+	debugGetUPP() // отладка
 	initIPK()
 	// initDevice()
 	// запросить данные УПП!
+
+	// upp := getTomlUPP() //отладка
+	// readToml(upp)
 
 	err = can25.Init(0x1F, 0x16)
 	if err != nil {
@@ -909,41 +878,44 @@ func top() fyne.CanvasObject {
 //---------------------------------------------------------------------------//
 
 func showFormUPP() {
-	declareParams() // заранее
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	upp := container.NewVBox()
+	b := container.NewVBox()
+	uppVal := getTomlUPP()
 
-	var val []int
-	for v := range params {
-		val = append(val, v)
+	var temp []int
+	for v := range uppVal {
+		temp = append(temp, v)
 	}
-	sort.Ints(val)
+	sort.Ints(temp)
 
-	for _, x := range val {
-		str := params[x]
+	for _, x := range temp {
+		val := uppVal[x]
 
-		paramName := widget.NewLabel(fmt.Sprintf("%4d %s", x, str))
-		paramName.TextStyle.Monospace = true
+		nameLabel := widget.NewLabel(fmt.Sprintf("%+4d %s", x, params[x]))
+		nameLabel.TextStyle.Monospace = true
 
 		paramEntry[x] = widget.NewEntry()
 		paramEntry[x].TextStyle.Monospace = true
-		paramEntry[x].SetText(paramsValue[x])
+		paramEntry[x].SetText(val)
 
-		line := container.NewGridWithColumns(2, paramName, paramEntry[x])
-		upp.Add(line)
+		line := container.NewGridWithColumns(2, nameLabel, paramEntry[x])
+		b.Add(line)
 	}
-	boxScrollUPP := container.NewVScroll(upp)                                                           // + крутилку
+	boxScrollUPP := container.NewVScroll(b)                                                             // + крутилку
 	boxScrollLayoutUPP := container.New(layout.NewGridWrapLayout(fyne.NewSize(770, 550)), boxScrollUPP) // чтобы не расползались, нужно место для кнопок
 
-	readCAN := widget.NewButton("CAN", nil)
-	table := widget.NewButton("заполнить", nil)
-	write := widget.NewButton("записать", nil)
-	boxButtons := container.NewHBox(readCAN, table, layout.NewSpacer(), write)
+	readButton := widget.NewButton("УПП БУ", nil)
+	writeButton := widget.NewButton("записать", func() {
+		// прочитать данные формы
+		// записать в мап
+		// записать мап в томл
+	})
+	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)
 	boxButtonsLayout := container.New(layout.NewGridWrapLayout(fyne.NewSize(800, 35)), boxButtons) // чтобы не расползались кнопки при растягивании бокса
 
 	box := container.NewVBox(boxScrollLayoutUPP, boxButtonsLayout)
