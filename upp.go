@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"sort"
 	"strconv"
 
 	"fyne.io/fyne/v2/widget"
@@ -85,7 +87,6 @@ func declareParams() {
 
 	params[26] = "Количество знаков табельного номера"
 	paramsValue[26] = "4"
-
 }
 
 /*
@@ -173,29 +174,21 @@ func getTomlUPP() (result map[int]string) {
 	return
 }
 
-/*
-func readToml(val map[int]string) {
-	var data struct {
-		UPP struct {
-			BU3pv map[string]string
-		}
-	}
-
-	for x, val := range val {
-		data.UPP.BU3pv[fmt.Sprintf("%d", x)] = val
-	}
-
-	var buffer bytes.Buffer
-
-	err := toml.NewEncoder(&buffer).Encode(&val)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Printf("%v\n", buffer.String())
-	}
-
-	err = ioutil.WriteFile("debug.toml", buffer.Bytes(), 0644)
+func writeToml(val []string) {
+	f, err := os.Create("upp.toml")
 	if err != nil {
 		fmt.Println(err)
 	}
-}*/
+	defer f.Close()
+
+	var temp []int
+	for v := range val {
+		temp = append(temp, v)
+	}
+	sort.Ints(temp)
+
+	f.WriteString("[UPP.BU3pv]\n")
+	for _, s := range val {
+		f.WriteString(s + "\n")
+	}
+}

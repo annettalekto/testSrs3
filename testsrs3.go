@@ -153,7 +153,7 @@ func safeError(data [8]byte) {
 	}
 
 	if _, ok := buErrors[code]; !ok {
-		buErrors[code] = true
+		buErrors[code] = false
 	}
 }
 
@@ -175,7 +175,8 @@ func getListCAN() fyne.CanvasObject {
 	requestCAN()
 	getDataCAN()
 
-	data := []string{
+	var data []string
+	/*data := []string{
 		"время",      // 0
 		"скорость 1", // 1
 		"скорость 2",
@@ -191,7 +192,7 @@ func getListCAN() fyne.CanvasObject {
 		"инд 1",       // 12
 		"инд 2",       // 13
 		// + ош
-	}
+	}*/
 
 	list := widget.NewList(
 		func() int {
@@ -211,52 +212,60 @@ func getListCAN() fyne.CanvasObject {
 	// обновление данных
 	go func() {
 		for {
+			data = nil
 			t := byteToTimeBU(mapDataCAN[idTimeBU])
-			data[0] = fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04"))
-			data[1] = fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1]))
-			data[2] = fmt.Sprintf("%-22s %.1f", "Скорость 2 (км/ч):", byteToSpeed(mapDataCAN[idSpeed2]))
-			tm, tc, gr := byteToPressure(mapDataCAN[idPressure])
-			data[3] = fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm)
-			data[4] = fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc)
-			data[5] = fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr)
-			u := byteDistance(mapDataCAN[idDistance])
-			data[6] = fmt.Sprintf("%-22s %d", "Дистанция (м):", u) // число на 22
-			_, str := byteToALS(mapDataCAN[idALS])
-			data[7] = fmt.Sprintf("%-16s %s", "АЛС:", str) // текст на 16
-			_, _, _, str = byteToCodeIF(mapDataCAN[idCodeIF])
-			data[8] = fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str)
-			canmsg := mapDataCAN[idBin]
-			if (canmsg[1] & 0x01) == 0x01 {
-				str = "установлено"
-			} else {
-				str = "сброшено"
-			}
-			data[9] = fmt.Sprintf("%-16s %s", "Движение вперёд:", str)
-			if (canmsg[1] & 0x02) == 0x02 {
-				str = "установлено"
-			} else {
-				str = "сброшено"
-			}
-			data[10] = fmt.Sprintf("%-16s %s", "Движение назад:", str)
-			if (canmsg[1] & 0x10) == 0x10 {
-				str = "установлен"
-			} else {
-				str = "сброшен"
-			}
-			data[11] = fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str)
+			data = append(data, fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04")))
+			data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1])))
+			/*
+				t := byteToTimeBU(mapDataCAN[idTimeBU])
+				data[0] = fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04"))
+				data[1] = fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1]))
+				data[2] = fmt.Sprintf("%-22s %.1f", "Скорость 2 (км/ч):", byteToSpeed(mapDataCAN[idSpeed2]))
+				tm, tc, gr := byteToPressure(mapDataCAN[idPressure])
+				data[3] = fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm)
+				data[4] = fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc)
+				data[5] = fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr)
+				u := byteDistance(mapDataCAN[idDistance])
+				data[6] = fmt.Sprintf("%-22s %d", "Дистанция (м):", u) // число на 22
+				_, str := byteToALS(mapDataCAN[idALS])
+				data[7] = fmt.Sprintf("%-16s %s", "АЛС:", str) // текст на 16
+				_, _, _, str = byteToCodeIF(mapDataCAN[idCodeIF])
+				data[8] = fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str)
+				canmsg := mapDataCAN[idBin]
+				if (canmsg[1] & 0x01) == 0x01 {
+					str = "установлено"
+				} else {
+					str = "сброшено"
+				}
+				data[9] = fmt.Sprintf("%-16s %s", "Движение вперёд:", str)
+				if (canmsg[1] & 0x02) == 0x02 {
+					str = "установлено"
+				} else {
+					str = "сброшено"
+				}
+				data[10] = fmt.Sprintf("%-16s %s", "Движение назад:", str)
+				if (canmsg[1] & 0x10) == 0x10 {
+					str = "установлен"
+				} else {
+					str = "сброшен"
+				}
+				data[11] = fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str)
 
-			str = byteToDigitalIndicator(mapDataCAN[idDigitalInd])
-			data[12] = fmt.Sprintf("%-16s %s", "Осн. инд.:", str)
-			str = byteToAddIndicator(mapDataCAN[idAddInd])
-			data[13] = fmt.Sprintf("%-16s %s", "Доп. инд.:", str)
+				str = byteToDigitalIndicator(mapDataCAN[idDigitalInd])
+				data[12] = fmt.Sprintf("%-16s %s", "Осн. инд.:", str)
+				str = byteToAddIndicator(mapDataCAN[idAddInd])
+				data[13] = fmt.Sprintf("%-16s %s", "Доп. инд.:", str)
 
-			for e := range buErrors {
-				data = append(data, fmt.Sprintf("H%d", e))
-			}
-			resetErrors() //todo выводить все ошибки, а менять только значение установлено-сброшено
-
+				for e, ok := range buErrors {
+					if !ok {
+						data = append(data, fmt.Sprintf("H%d", e))
+						ok = true
+					}
+				}
+				resetErrors() //todo выводить все ошибки, а менять только значение установлено-сброшено
+			*/
 			list.Refresh()
-			time.Sleep(time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}()
 
@@ -288,7 +297,7 @@ func requestCAN() {
 			// msg.Data = [8]byte{0x04, 0xFF, 0, 0}
 			// can25.Send(msg)
 
-			time.Sleep(time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}()
 }
@@ -323,11 +332,11 @@ func getDataCAN() {
 
 				}
 			default:
-				runtime.Gosched()
 			}
+			runtime.Gosched()
 
 			// обновление данных
-			time.Sleep(100 * time.Millisecond)
+			// time.Sleep(200 * time.Millisecond)
 		}
 		// timeCheckDone <- 1
 	}()
@@ -896,7 +905,7 @@ func showFormUPP() {
 	for _, x := range temp {
 		val := uppVal[x]
 
-		nameLabel := widget.NewLabel(fmt.Sprintf("%+4d %s", x, params[x]))
+		nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", x, params[x]))
 		nameLabel.TextStyle.Monospace = true
 
 		paramEntry[x] = widget.NewEntry()
@@ -911,9 +920,12 @@ func showFormUPP() {
 
 	readButton := widget.NewButton("УПП БУ", nil)
 	writeButton := widget.NewButton("записать", func() {
-		// прочитать данные формы
-		// записать в мап
-		// записать мап в томл
+		var data []string
+		for _, x := range temp {
+			str := fmt.Sprintf("%d = \"%s\"", x, paramEntry[x].Text)
+			data = append(data, str)
+		}
+		writeToml(data)
 	})
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)
 	boxButtonsLayout := container.New(layout.NewGridWrapLayout(fyne.NewSize(800, 35)), boxButtons) // чтобы не расползались кнопки при растягивании бокса
