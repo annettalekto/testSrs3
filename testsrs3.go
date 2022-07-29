@@ -213,9 +213,60 @@ func getListCAN() fyne.CanvasObject {
 	go func() {
 		for {
 			data = nil
-			t := byteToTimeBU(mapDataCAN[idTimeBU])
+
+			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
 			data = append(data, fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04")))
+			data = append(data, " ")
+
 			data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1])))
+			tm, tc, gr := byteToPressure(mapDataCAN[idPressure])
+			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm))
+			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc))
+			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr))
+			u := byteDistance(mapDataCAN[idDistance])
+			data = append(data, fmt.Sprintf("%-22s %d", "Дистанция (м):", u)) // число на 22
+			_, str := byteToALS(mapDataCAN[idALS])
+			data = append(data, " ")
+
+			data = append(data, fmt.Sprintf("%-16s %s", "АЛС:", str)) // текст на 16
+			_, _, _, str = byteToCodeIF(mapDataCAN[idCodeIF])
+			data = append(data, fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str))
+			canmsg := mapDataCAN[idBin]
+			if (canmsg[1] & 0x01) == 0x01 {
+				str = "установлено"
+			} else {
+				str = "сброшено"
+			}
+			data = append(data, fmt.Sprintf("%-16s %s", "Движение вперёд:", str))
+			if (canmsg[1] & 0x02) == 0x02 {
+				str = "установлено"
+			} else {
+				str = "сброшено"
+			}
+			data = append(data, fmt.Sprintf("%-16s %s", "Движение назад:", str))
+			if (canmsg[1] & 0x10) == 0x10 {
+				str = "установлен"
+			} else {
+				str = "сброшен"
+			}
+			data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str))
+
+			str = byteToDigitalIndicator(mapDataCAN[idDigitalInd])
+			data = append(data, fmt.Sprintf("%-16s %s", "Осн. инд.:", str))
+			str = byteToAddIndicator(mapDataCAN[idAddInd])
+			data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
+
+			if len(buErrors) > 0 {
+				data = append(data, " ")
+				data = append(data, "Ошибки:")
+				for errorcode, ok := range buErrors {
+					if !ok && errorcode != 0 {
+						data = append(data, fmt.Sprintf("H%d", errorcode))
+						ok = true
+					}
+				}
+				resetErrors()
+			}
 			/*
 				t := byteToTimeBU(mapDataCAN[idTimeBU])
 				data[0] = fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04"))
@@ -297,7 +348,7 @@ func requestCAN() {
 			// msg.Data = [8]byte{0x04, 0xFF, 0, 0}
 			// can25.Send(msg)
 
-			time.Sleep(1 * time.Second)
+			time.Sleep(1 * time.Second / 2)
 		}
 	}()
 }
@@ -610,6 +661,8 @@ func speed() fyne.CanvasObject {
 				}
 				entrySpeed1.Entered = false
 				entrySpeed2.Entered = false
+				entrySpeed1.Entry.SetText(fmt.Sprintf("%.0f", speed1))
+				entrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
 				fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 			}
 
@@ -620,6 +673,8 @@ func speed() fyne.CanvasObject {
 				}
 				entryAccel1.Entered = false
 				entryAccel2.Entered = false
+				entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
+				entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
 				fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
 			}
 
@@ -638,6 +693,7 @@ func speed() fyne.CanvasObject {
 				}
 				fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
 				entryPress1.Entered = false
+				entryPress1.Entry.SetText(fmt.Sprintf("%.2f", press1))
 			}
 			if entryPress2.Entered {
 				err = channel2.Set(press2)
@@ -646,6 +702,7 @@ func speed() fyne.CanvasObject {
 				}
 				fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
 				entryPress2.Entered = false
+				entryPress2.Entry.SetText(fmt.Sprintf("%.2f", press2))
 			}
 			if entryPress3.Entered {
 				err = channel3.Set(press3)
@@ -654,6 +711,7 @@ func speed() fyne.CanvasObject {
 				}
 				fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
 				entryPress3.Entered = false
+				entryPress3.Entry.SetText(fmt.Sprintf("%.2f", press3))
 			}
 
 			time.Sleep(time.Second)
