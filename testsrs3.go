@@ -212,7 +212,7 @@ func getListCAN() fyne.CanvasObject {
 	// обновление данных
 	go func() {
 		for {
-			data = nil
+			data = nil // todo выводить только то, что есть в CAN? без второй сорости и тд?
 
 			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
 			data = append(data, fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04")))
@@ -421,7 +421,7 @@ func speed() fyne.CanvasObject {
 
 	// ---------------------- обработка скорости
 	entrySpeed1.Entry.TextStyle.Monospace = true
-	entrySpeed1.Entry.SetPlaceHolder("0.00")
+	entrySpeed1.Entry.SetPlaceHolder("0.0")
 	entrySpeed1.Entry.OnChanged = func(str string) {
 		speed1, err = strconv.ParseFloat(str, 64)
 		if err != nil {
@@ -434,7 +434,7 @@ func speed() fyne.CanvasObject {
 	}
 
 	entrySpeed2.Entry.TextStyle.Monospace = true
-	entrySpeed2.Entry.SetPlaceHolder("0.00")
+	entrySpeed2.Entry.SetPlaceHolder("0.0")
 	entrySpeed2.Entry.OnChanged = func(str string) {
 		speed2, err = strconv.ParseFloat(str, 64)
 		if err != nil {
@@ -661,9 +661,9 @@ func speed() fyne.CanvasObject {
 				}
 				entrySpeed1.Entered = false
 				entrySpeed2.Entered = false
-				entrySpeed1.Entry.SetText(fmt.Sprintf("%.0f", speed1))
-				entrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
-				fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
+				entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
+				entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+				fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err) //todo происходит округление, не допускать не корректного! 1,5 -> 2
 			}
 
 			if entryAccel1.Entered || entryAccel2.Entered {
