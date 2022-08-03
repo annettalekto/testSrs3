@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -22,6 +23,7 @@ import (
 )
 
 var gVersion, gYear, gProgramName string
+var gStatusString binding.String
 
 func main() {
 	gVersion, gYear = "1.0.0", "2022 г." // todo править при изменениях
@@ -78,6 +80,13 @@ func main() {
 		}
 	}()
 
+	gStatusLabel := widget.NewLabel("Статус")
+	var style fyne.TextStyle
+	style.Monospace = true
+	gStatusLabel.TextStyle = style
+	gStatusString = binding.NewString()
+	gStatusLabel.Bind(gStatusString)
+
 	// Элементы
 	boxSpeed := speed()
 	boxOutput := outputSignals()
@@ -90,7 +99,10 @@ func main() {
 	box3 := container.NewVSplit(top, box2)
 
 	boxCAN := getListCAN()
-	box := container.NewHSplit(box3, boxCAN)
+	box4 := container.NewHSplit(box3, boxCAN)
+
+	box := container.NewVSplit(box4, gStatusLabel)
+	// gStatusString.Set("Тут будет статус операции, подсказака или вывод ошибки")
 
 	w.SetContent(box)
 	w.ShowAndRun()
@@ -143,7 +155,7 @@ func abautProgramm() {
 // 								Данные CAN
 //---------------------------------------------------------------------------//
 var mapDataCAN = make(map[uint32][8]byte)
-var buErrors = make(map[uint16]bool)
+var buErrors = make(map[uint16]bool) // todo slice int?
 
 func safeError(data [8]byte) {
 	var code uint16
@@ -151,10 +163,7 @@ func safeError(data [8]byte) {
 	if data[0] == 1 { // код ошибки установлен
 		code = (uint16(data[2]) << 8) | uint16(data[1])
 	}
-
-	if _, ok := buErrors[code]; !ok {
-		buErrors[code] = false
-	}
+	buErrors[code] = false
 }
 
 func resetErrors() {
@@ -176,23 +185,6 @@ func getListCAN() fyne.CanvasObject {
 	getDataCAN()
 
 	var data []string
-	/*data := []string{
-		"время",      // 0
-		"скорость 1", // 1
-		"скорость 2",
-		"давление 1",  // 3
-		"давление 2",  // 4
-		"давление 3",  // 5
-		"дистанция",   // 6
-		"алс",         // 7
-		"ИФ",          // 8
-		"bin: вперед", // 9
-		"bin: назад",  // 10
-		"bin: тяга",   // 11
-		"инд 1",       // 12
-		"инд 2",       // 13
-		// + ош
-	}*/
 
 	list := widget.NewList(
 		func() int {
@@ -205,9 +197,20 @@ func getListCAN() fyne.CanvasObject {
 			return temp
 			// return widget.NewLabel("template")
 		},
-		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(data[i])
+		func(id widget.ListItemID, o fyne.CanvasObject) {
+			o.(*widget.Label).SetText(data[id])
 		})
+
+	list.OnSelected = func(id widget.ListItemID) {
+		if strings.HasPrefix(data[id], "H") {
+			val := strings.TrimPrefix(data[id], "H")
+			// найти в toml файле, который сначала нужно сделать
+			// описание в строку статуса
+			gStatusString.Set(fmt.Sprintf("H%s: описание этой ошибки, так чтобы влезло в строку", val))
+		} else {
+			gStatusString.Set("")
+		}
+	}
 
 	// обновление данных
 	go func() {
@@ -219,6 +222,7 @@ func getListCAN() fyne.CanvasObject {
 			data = append(data, " ")
 
 			data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1])))
+			data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 2 (км/ч):", byteToSpeed(mapDataCAN[idSpeed2])))
 			tm, tc, gr := byteToPressure(mapDataCAN[idPressure])
 			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm))
 			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc))
@@ -259,69 +263,25 @@ func getListCAN() fyne.CanvasObject {
 			if len(buErrors) > 0 {
 				data = append(data, " ")
 				data = append(data, "Ошибки:")
-				for errorcode, ok := range buErrors {
-					if !ok && errorcode != 0 {
-						data = append(data, fmt.Sprintf("H%d", errorcode))
-						ok = true
+				var temp []int
+				for errorcode := range buErrors {
+					temp = append(temp, int(errorcode))
+				}
+				sort.Ints(temp)
+				for _, x := range temp {
+					if x != 0 {
+						data = append(data, fmt.Sprintf("H%d", x))
 					}
 				}
 				resetErrors()
 			}
-			/*
-				t := byteToTimeBU(mapDataCAN[idTimeBU])
-				data[0] = fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04"))
-				data[1] = fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1]))
-				data[2] = fmt.Sprintf("%-22s %.1f", "Скорость 2 (км/ч):", byteToSpeed(mapDataCAN[idSpeed2]))
-				tm, tc, gr := byteToPressure(mapDataCAN[idPressure])
-				data[3] = fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm)
-				data[4] = fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc)
-				data[5] = fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr)
-				u := byteDistance(mapDataCAN[idDistance])
-				data[6] = fmt.Sprintf("%-22s %d", "Дистанция (м):", u) // число на 22
-				_, str := byteToALS(mapDataCAN[idALS])
-				data[7] = fmt.Sprintf("%-16s %s", "АЛС:", str) // текст на 16
-				_, _, _, str = byteToCodeIF(mapDataCAN[idCodeIF])
-				data[8] = fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str)
-				canmsg := mapDataCAN[idBin]
-				if (canmsg[1] & 0x01) == 0x01 {
-					str = "установлено"
-				} else {
-					str = "сброшено"
-				}
-				data[9] = fmt.Sprintf("%-16s %s", "Движение вперёд:", str)
-				if (canmsg[1] & 0x02) == 0x02 {
-					str = "установлено"
-				} else {
-					str = "сброшено"
-				}
-				data[10] = fmt.Sprintf("%-16s %s", "Движение назад:", str)
-				if (canmsg[1] & 0x10) == 0x10 {
-					str = "установлен"
-				} else {
-					str = "сброшен"
-				}
-				data[11] = fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str)
 
-				str = byteToDigitalIndicator(mapDataCAN[idDigitalInd])
-				data[12] = fmt.Sprintf("%-16s %s", "Осн. инд.:", str)
-				str = byteToAddIndicator(mapDataCAN[idAddInd])
-				data[13] = fmt.Sprintf("%-16s %s", "Доп. инд.:", str)
-
-				for e, ok := range buErrors {
-					if !ok {
-						data = append(data, fmt.Sprintf("H%d", e))
-						ok = true
-					}
-				}
-				resetErrors() //todo выводить все ошибки, а менять только значение установлено-сброшено
-			*/
 			list.Refresh()
 			time.Sleep(1 * time.Second)
 		}
 	}()
 
-	// boxList := container.NewMax(list)
-	boxList := container.New(layout.NewGridWrapLayout(fyne.NewSize(280, 600)), list)
+	boxList := container.New(layout.NewGridWrapLayout(fyne.NewSize(290, 695)), list)
 	box := container.NewVBox(text, boxList)
 
 	return box
