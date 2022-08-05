@@ -96,8 +96,8 @@ func declareParams() {
 	3 Записывать данные с формы в БУ
 
 1
-- взять данные из файла
-- отобразить на экране как есть
++ взять данные из файла
++ отобразить на экране как есть
 toml -> entry
 f сохранения в файл
 f выгрузки из файла в форму
@@ -110,47 +110,12 @@ f выгрузки из файла в форму
 map -> entry
 
 3
-Взять из формы значения
++Взять из формы значения
 Проверить их
 Записать в БУ
 Вывести на экран результат записи ok/error
 
 */
-
-// Conf s;dlgk
-// type Conf struct {
-// 	Title string
-// 	Upp   upp `toml:"upp"`
-// }
-
-// type upp struct {
-// 	data map[string]string
-// 	// Band1 string
-// 	// Band2 string
-// 	// Diam  string
-// }
-
-//
-// conf := new(Conf)
-// if _, err := toml.DecodeFile("test.toml", conf); err != nil {
-// 	fmt.Println(err)
-// } else {
-// 	fmt.Println(conf.Data.Diam)
-// }
-//
-
-// var s struct {
-// 	FOO struct {
-// 		Passwords map[string]string
-// 	}
-// }
-
-// // conf := new(Conf)
-// _, err = toml.DecodeFile("upp.toml", &s)
-// if err != nil {
-// 	fmt.Println(err)
-// }
-// fmt.Printf("%v", s.FOO.Passwords["2"])
 
 func getTomlUPP() (result map[int]string) {
 	var err error
@@ -165,7 +130,7 @@ func getTomlUPP() (result map[int]string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("%v", data.UPP.BU3pv["2"])
+	// fmt.Printf("%v", data.UPP.BU3pv["2"])
 
 	for i, t := range data.UPP.BU3pv {
 		val, _ := strconv.Atoi(i)
@@ -191,4 +156,19 @@ func writeToml(val []string) {
 	for _, s := range val {
 		f.WriteString(s + "\n")
 	}
+}
+
+func getErrorDescription(sCode string) string {
+	var err error
+	var data struct {
+		Errors struct {
+			Description map[string]string
+		}
+	}
+
+	_, err = toml.DecodeFile("errors.toml", &data)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return data.Errors.Description[sCode]
 }

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -154,27 +155,35 @@ func abautProgramm() {
 //---------------------------------------------------------------------------//
 // 								Данные CAN
 //---------------------------------------------------------------------------//
-var mapDataCAN = make(map[uint32][8]byte)
-var buErrors = make(map[uint16]bool) // todo slice int?
+var mu sync.Mutex
+var gDataCAN = make(map[uint32][8]byte)
+var gBuErrors []int
 
-func safeError(data [8]byte) {
-	var code uint16
+func getDataCAN() map[uint32][8]byte {
+	mapDataCAN := make(map[uint32][8]byte)
 
-	if data[0] == 1 { // код ошибки установлен
-		code = (uint16(data[2]) << 8) | uint16(data[1])
-	}
-	buErrors[code] = false
+	mu.Lock()
+	mapDataCAN = gDataCAN
+	mu.Unlock()
+
+	return mapDataCAN
 }
 
-func resetErrors() {
-	for v := range buErrors {
-		delete(buErrors, v)
+func safeError(data [8]byte) {
+	var code int
+
+	if data[0] == 1 { // код ошибки установлен
+		code = (int(data[2]) << 8) | int(data[1]) // todo проверить на диапазон?
 	}
+	for _, val := range gBuErrors {
+		if val == code {
+			return
+		}
+	}
+	gBuErrors = append(gBuErrors, code)
 }
 
 func getListCAN() fyne.CanvasObject {
-	// mapDataCAN = make(map[uint32][8]byte) // скопище байтов из CAN
-	// buErrors = make(map[uint16]bool)      //
 
 	var style fyne.TextStyle
 	style.Bold = true
@@ -182,7 +191,7 @@ func getListCAN() fyne.CanvasObject {
 
 	// получение данных
 	requestCAN()
-	getDataCAN()
+	getCAN()
 
 	var data []string
 
@@ -203,19 +212,25 @@ func getListCAN() fyne.CanvasObject {
 
 	list.OnSelected = func(id widget.ListItemID) {
 		if strings.HasPrefix(data[id], "H") {
-			val := strings.TrimPrefix(data[id], "H")
+			sCodeError := strings.TrimPrefix(data[id], "H")
 			// найти в toml файле, который сначала нужно сделать
 			// описание в строку статуса
-			gStatusString.Set(fmt.Sprintf("H%s: описание этой ошибки, так чтобы влезло в строку", val))
+			sErrorDescription := getErrorDescription(sCodeError)
+			gStatusString.Set(fmt.Sprintf("H%s: %s", sCodeError, sErrorDescription))
 		} else {
 			gStatusString.Set("")
 		}
 	}
 
+	// mapDataCAN := make(map[uint32][8]byte)
 	// обновление данных
 	go func() {
 		for {
 			data = nil // todo выводить только то, что есть в CAN? без второй сорости и тд?
+			// mu.Lock()
+			// mapDataCAN = gDataCAN
+			// mu.Unlock()
+			mapDataCAN := getDataCAN()
 
 			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
 			data = append(data, fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04")))
@@ -260,24 +275,25 @@ func getListCAN() fyne.CanvasObject {
 			str = byteToAddIndicator(mapDataCAN[idAddInd])
 			data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
 
+			buErrors := append(gBuErrors)
+			gBuErrors = nil
 			if len(buErrors) > 0 {
 				data = append(data, " ")
 				data = append(data, "Ошибки:")
-				var temp []int
-				for errorcode := range buErrors {
-					temp = append(temp, int(errorcode))
-				}
-				sort.Ints(temp)
-				for _, x := range temp {
+				// var temp []int
+				// for errorcode := range gBuErrors {
+				// temp = append(temp, int(errorcode))
+				// }
+				sort.Ints(buErrors)
+				for _, x := range buErrors {
 					if x != 0 {
 						data = append(data, fmt.Sprintf("H%d", x))
 					}
 				}
-				resetErrors()
 			}
 
 			list.Refresh()
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 		}
 	}()
 
@@ -313,7 +329,7 @@ func requestCAN() {
 	}()
 }
 
-func getDataCAN() {
+func getCAN() {
 
 	// timeCheckDone := make(chan int) // признак того что результат готов
 
@@ -329,15 +345,17 @@ func getDataCAN() {
 				if !ok { //при закрытом канале
 					stop = true
 				} else {
+					mu.Lock()
 					if msg.ID == idErrors {
 						safeError(msg.Data)
 					} else if msg.ID == idBI && msg.Data[0] == 0x01 {
-						mapDataCAN[idDigitalInd] = msg.Data
+						gDataCAN[idDigitalInd] = msg.Data
 					} else if msg.ID == idBI && msg.Data[0] == 0x02 {
-						mapDataCAN[idAddInd] = msg.Data
+						gDataCAN[idAddInd] = msg.Data
 					} else {
-						mapDataCAN[msg.ID] = msg.Data
+						gDataCAN[msg.ID] = msg.Data
 					}
+					mu.Unlock()
 
 					// defer can25.CloseMsgChannelCopy(idx)
 
