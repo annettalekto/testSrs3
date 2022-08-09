@@ -13,12 +13,14 @@ import (
 // 3пв
 var params = make(map[int]string)      // просто список параметров todo для всех БУ
 var paramsValue = make(map[int]string) // значения из toml для подгрузки при старте
+var hints = make(map[int]string)
 
 var paramEntry = make(map[int]*widget.Entry)
 
 func declareParams() {
 	params[2] = "Диаметр бандажа первой колёсной пары" // (мм)"
 	paramsValue[2] = "1350"
+	hints[2] = "Возможные значения 600 — 1350"
 
 	params[3] = "Диаметр бандажа второй колёсной пары" // (мм)"
 	paramsValue[3] = "1350"

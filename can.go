@@ -2,8 +2,12 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"strconv"
 	"time"
+
+	"github.com/amdf/ixxatvci3/candev"
 )
 
 const (
@@ -21,6 +25,102 @@ const (
 	idDigitalInd = 1     // fake
 	idAddInd     = 2
 )
+
+// устанавливать время (в режиме обслуживания)
+func setTimeBU(h, m, s int) (err error) {
+	var msg candev.Message
+
+	dt := time.Now()
+	y, _ := strconv.Atoi(dt.Format("2006"))
+	month, _ := strconv.Atoi(dt.Format("1"))
+	d, _ := strconv.Atoi(dt.Format("2"))
+
+	msg.ID = uint32(0x5C7)
+	msg.Rtr = false
+	msg.Len = 8
+	msg.Data = [8]byte{byte(y), byte(y >> 8), byte(month), byte(d), byte(h), byte(m), byte(s)} //5C7 -  07 E5 01 02 03 04 05 проверить: C7 - 07 E5 01 01 01 12 00
+
+	err = can25.Send(msg)
+
+	// проверить установку можно в рабочем режиме блока по сообщению 0xC7
+	return
+}
+
+func setCurrentTimeBU() (err error) {
+
+	dt := time.Now()
+	h, _ := strconv.Atoi(dt.Format("15"))
+	m, _ := strconv.Atoi(dt.Format("4"))
+	s, _ := strconv.Atoi(dt.Format("5"))
+
+	err = setTimeBU(h, m, s)
+
+	return
+}
+
+// по сути для одного признака 10 Дискретность регистрации топлива для БР(0.5, 1.0, 2.0)
+func setFloatVal(mod int, s string) (err error) {
+	var f float64
+	if f, err = strconv.ParseFloat(s, 64); err != nil {
+		err = errors.New("setFloatVal(): значение \"" + s + "\" не переведено в float64")
+		return
+	}
+
+	var sendMsg, receiveMsg candev.Message
+	sendMsg.ID = 0x5C3
+	sendMsg.Len = 5
+
+	d1 := int(f)                      // целая
+	d2 := int((f - float64(d1)) * 10) // дробная часть
+
+	sendMsg.Data[0] = byte(mod)
+	sendMsg.Data[1] = byte(d2 & 0xFF)
+	sendMsg.Data[2] = byte((d2 >> 8) & 0xFF)
+	sendMsg.Data[3] = byte(d1 & 0xFF)
+	sendMsg.Data[4] = byte((d1 >> 8) & 0xFF)
+	can25.Send(sendMsg)
+
+	receiveMsg, err = can25.GetMsgByID(0x5C0, 2*time.Second)
+	if err == nil {
+		if sendMsg.Data != receiveMsg.Data {
+			err = fmt.Errorf("setFloatVal(): значение признака не установлено: %X %X %X %X", sendMsg.Data[1], sendMsg.Data[2], sendMsg.Data[3], sendMsg.Data[4])
+		}
+	}
+
+	return
+}
+
+// установить УПП int по CAN
+// только в режиме обслуживания блока
+func setIntVal(mod int, s string) (err error) {
+	var val int
+	if val, err = strconv.Atoi(s); err != nil {
+		err = errors.New("setIntVal(): значение \"" + s + "\" не переведено в int")
+		return
+	}
+
+	var sendMsg, receiveMsg candev.Message
+	sendMsg.ID = 0x5C3
+	sendMsg.Len = 5
+
+	sendMsg.Data[0] = byte(mod)
+	sendMsg.Data[1] = byte(val & 0xFF)
+	sendMsg.Data[2] = byte((val >> 8) & 0xFF)
+	sendMsg.Data[3] = byte((val >> 16) & 0xFF)
+	sendMsg.Data[4] = byte((val >> 24) & 0xFF)
+	can25.Send(sendMsg) // установить значение
+
+	// поймать ответ, должен быть таким же как отправленное сообщение
+	// это же сообщение можно запросить через 0x5C1, rtr = 1
+	receiveMsg, err = can25.GetMsgByID(0x5C0, 2*time.Second)
+	if err == nil {
+		if sendMsg.Data != receiveMsg.Data {
+			err = fmt.Errorf("setIntVal(): значение признака не установлено: %d", (int(sendMsg.Data[2])<<8 | int(sendMsg.Data[1])))
+		}
+	}
+
+	return
+}
 
 //---------------------------------------- Индикатор ----------------------------------------//
 

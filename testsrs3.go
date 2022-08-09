@@ -184,7 +184,6 @@ func safeError(data [8]byte) {
 }
 
 func getListCAN() fyne.CanvasObject {
-
 	var style fyne.TextStyle
 	style.Bold = true
 	text := widget.NewLabelWithStyle("Данные CAN:", fyne.TextAlignCenter, style)
@@ -923,6 +922,7 @@ func top() fyne.CanvasObject {
 //---------------------------------------------------------------------------//
 
 func showFormUPP() {
+	statusLabel := widget.NewLabel("тут будет всякое")
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -947,6 +947,9 @@ func showFormUPP() {
 		paramEntry[x] = widget.NewEntry()
 		paramEntry[x].TextStyle.Monospace = true
 		paramEntry[x].SetText(val)
+		paramEntry[x].OnChanged = func(str string) {
+			statusLabel.SetText(hints[x])
+		}
 
 		line := container.NewGridWithColumns(2, nameLabel, paramEntry[x])
 		b.Add(line)
@@ -963,8 +966,11 @@ func showFormUPP() {
 		}
 		writeToml(data)
 	})
+
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)
-	boxButtonsLayout := container.New(layout.NewGridWrapLayout(fyne.NewSize(800, 35)), boxButtons) // чтобы не расползались кнопки при растягивании бокса
+	boxBottom := container.NewVBox(statusLabel, boxButtons)
+
+	boxButtonsLayout := container.New(layout.NewGridWrapLayout(fyne.NewSize(800, 80)), boxBottom) // чтобы не расползались кнопки при растягивании бокса
 
 	box := container.NewVBox(boxScrollLayoutUPP, boxButtonsLayout)
 
