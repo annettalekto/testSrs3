@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strconv"
 
-	"fyne.io/fyne/v2/widget"
 	"github.com/BurntSushi/toml"
 )
 
@@ -15,21 +14,90 @@ var params = make(map[int]string)      // просто список параме
 var paramsValue = make(map[int]string) // значения из toml для подгрузки при старте
 var hints = make(map[int]string)
 
-var paramEntry = make(map[int]*widget.Entry)
+type DataUPP struct {
+	// Number int
+	Name  string
+	Value string
+	Hint  string
+}
 
-func declareParams() {
+var gUPP = make(map[int]DataUPP)
+
+func getTomlUPP() {
+	var err error
+	var data struct {
+		UPP struct {
+			Name  map[string]string
+			Value map[string]string
+			Hint  map[string]string
+		}
+	}
+	_, err = toml.DecodeFile("upp.toml", &data)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for i := range data.UPP.Name {
+		var upp DataUPP
+		number, _ := strconv.Atoi(i)
+		upp.Name = data.UPP.Name[i]
+		upp.Value = data.UPP.Value[i]
+		upp.Hint = data.UPP.Hint[i]
+		gUPP[number] = upp
+	}
+	return
+}
+
+func writeToml(val []string) {
+	f, err := os.Create("upp.toml")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer f.Close()
+
+	var temp []int
+	for v := range val {
+		temp = append(temp, v)
+	}
+	sort.Ints(temp)
+
+	f.WriteString("[UPP.BU3pv]\n")
+	for _, s := range val {
+		f.WriteString(s + "\n")
+	}
+}
+
+func getErrorDescription(sCode string) string {
+	var err error
+	var data struct {
+		Errors struct {
+			Description map[string]string
+		}
+	}
+
+	_, err = toml.DecodeFile("errors.toml", &data)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return data.Errors.Description[sCode]
+}
+
+func debugDeclareParams() {
 	params[2] = "Диаметр бандажа первой колёсной пары" // (мм)"
 	paramsValue[2] = "1350"
 	hints[2] = "Возможные значения 600 — 1350"
 
 	params[3] = "Диаметр бандажа второй колёсной пары" // (мм)"
 	paramsValue[3] = "1350"
+	hints[3] = "Возможные значения 600 — 1350"
 
-	params[4] = "Наличие МПМЭ" // названия тоже могут отличаться в разных бу, БУ известно заранее
-	paramsValue[4] = "1"       // todo формировать для каждого блока свое
+	params[4] = "Наличие МПМЭ"            // названия тоже могут отличаться в разных бу, БУ известно заранее
+	paramsValue[4] = "1"                  // todo формировать для каждого блока свое
+	hints[4] = "Возможные значения: 0, 1" // подсказки тоже или считать из toml
 
 	params[5] = "Тип локомотива или электросекции"
 	paramsValue[5] = "111"
+	hints[5] = "Возможные значения 111 - 999"
 
 	params[6] = "Номер локомотива или электросекции"
 	paramsValue[6] = "1"
@@ -89,88 +157,4 @@ func declareParams() {
 
 	params[26] = "Количество знаков табельного номера"
 	paramsValue[26] = "4"
-}
-
-/*
-	todo
-	1 Выводить сохраненное в файл при старте
-	2 Считывать данные с БУ
-	3 Записывать данные с формы в БУ
-
-1
-+ взять данные из файла
-+ отобразить на экране как есть
-toml -> entry
-f сохранения в файл
-f выгрузки из файла в форму
-
-2
-Перейти в режим обслуживания?
-Считать данные из БУ в map
-Вывести на экран полученное (или ошибку считывания)
-Выйти из режима обслуживания?
-map -> entry
-
-3
-+Взять из формы значения
-Проверить их
-Записать в БУ
-Вывести на экран результат записи ok/error
-
-*/
-
-func getTomlUPP() (result map[int]string) {
-	var err error
-	var data struct {
-		UPP struct {
-			BU3pv map[string]string
-		}
-	}
-	result = make(map[int]string)
-
-	_, err = toml.DecodeFile("upp.toml", &data)
-	if err != nil {
-		fmt.Println(err)
-	}
-	// fmt.Printf("%v", data.UPP.BU3pv["2"])
-
-	for i, t := range data.UPP.BU3pv {
-		val, _ := strconv.Atoi(i)
-		result[val] = t
-	}
-	return
-}
-
-func writeToml(val []string) {
-	f, err := os.Create("upp.toml")
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer f.Close()
-
-	var temp []int
-	for v := range val {
-		temp = append(temp, v)
-	}
-	sort.Ints(temp)
-
-	f.WriteString("[UPP.BU3pv]\n")
-	for _, s := range val {
-		f.WriteString(s + "\n")
-	}
-}
-
-func getErrorDescription(sCode string) string {
-	var err error
-	var data struct {
-		Errors struct {
-			Description map[string]string
-		}
-	}
-
-	_, err = toml.DecodeFile("errors.toml", &data)
-	if err != nil {
-		fmt.Println(err)
-	}
-	return data.Errors.Description[sCode]
 }

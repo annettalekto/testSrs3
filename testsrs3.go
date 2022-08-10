@@ -32,8 +32,9 @@ func main() {
 	var err error
 
 	// Инит
-	declareParams()
-	debugGetUPP() // отладка
+	// debugDeclareParams()
+	// debugGetUPP() //todo отладка
+	getTomlUPP()
 	initIPK()
 	// initDevice()
 	// запросить данные УПП!
@@ -922,7 +923,14 @@ func top() fyne.CanvasObject {
 //---------------------------------------------------------------------------//
 
 func showFormUPP() {
+	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
 	statusLabel := widget.NewLabel("тут будет всякое")
+	// type UPP struct {
+	// 	number int
+	// 	label  *widget.Label
+	// 	entry  *widget.Entry
+	// }
+	// var allupp []UPP
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -930,28 +938,62 @@ func showFormUPP() {
 	w.CenterOnScreen()
 
 	b := container.NewVBox()
-	uppVal := getTomlUPP()
+	// getTomlUPP()
 
 	var temp []int
-	for v := range uppVal {
+	for v := range gUPP {
 		temp = append(temp, v)
 	}
 	sort.Ints(temp)
 
-	for _, x := range temp {
-		val := uppVal[x]
+	// for _, x := range temp {
+	// 	var val UPP
+	// 	val.number = x
+	// 	val.label = widget.NewLabel(fmt.Sprintf("%-4d %s", x, params[x]))
+	// 	val.label.TextStyle.Monospace = true
+	// 	val.entry = widget.NewEntry()
+	// 	val.entry.TextStyle.Monospace = true
+	// 	val.entry.SetText(uppVal[x])
+	// 	val.entry.OnChanged = func(str string) {
+	// 		statusLabel.SetText(hints[val.number])
+	// 	}
 
-		nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", x, params[x]))
+	// 	allupp = append(allupp, val)
+	// 	line := container.NewGridWithColumns(2, val.label, val.entry)
+	// 	b.Add(line)
+	// }
+
+	// for _, x := range temp {
+	// 	val := uppVal[x]
+
+	// 	nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", x, params[x]))
+	// 	nameLabel.TextStyle.Monospace = true
+
+	// 	paramEntry[x] = widget.NewEntry()
+	// 	paramEntry[x].TextStyle.Monospace = true
+	// 	paramEntry[x].SetText(val)
+	// 	paramEntry[x].OnChanged = func(str string) {
+	// 		statusLabel.SetText(hints[x])
+	// 	}
+
+	// 	line := container.NewGridWithColumns(2, nameLabel, paramEntry[x])
+	// 	b.Add(line)
+	// }
+
+	for _, number := range temp {
+		upp := gUPP[number]
+
+		nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", number, upp.Name))
 		nameLabel.TextStyle.Monospace = true
 
-		paramEntry[x] = widget.NewEntry()
-		paramEntry[x].TextStyle.Monospace = true
-		paramEntry[x].SetText(val)
-		paramEntry[x].OnChanged = func(str string) {
-			statusLabel.SetText(hints[x])
+		paramEntry[number] = widget.NewEntry()
+		paramEntry[number].TextStyle.Monospace = true
+		paramEntry[number].SetText(upp.Value)
+		paramEntry[number].OnChanged = func(str string) {
+			statusLabel.SetText(upp.Hint)
 		}
 
-		line := container.NewGridWithColumns(2, nameLabel, paramEntry[x])
+		line := container.NewGridWithColumns(2, nameLabel, paramEntry[number])
 		b.Add(line)
 	}
 	boxScrollUPP := container.NewVScroll(b)                                                             // + крутилку
