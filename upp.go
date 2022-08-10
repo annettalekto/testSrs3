@@ -44,7 +44,8 @@ func getTomlUPP() {
 	return
 }
 
-func writeToml(val []string) {
+// записать текущие УПП в файл
+func writeTomlUPP() {
 	f, err := os.Create("upp.toml")
 	if err != nil {
 		fmt.Println(err)
@@ -52,14 +53,23 @@ func writeToml(val []string) {
 	defer f.Close()
 
 	var temp []int
-	for v := range val {
+	for v := range gUPP {
 		temp = append(temp, v)
 	}
 	sort.Ints(temp)
 
-	f.WriteString("[UPP.BU3pv]\n")
-	for _, s := range val {
-		f.WriteString(s + "\n")
+	f.WriteString("#БУ-3ПВ\n\n")
+	f.WriteString("[UPP.Name]\n")
+	for _, number := range temp {
+		f.WriteString(fmt.Sprintf("%d = \"%s\"\n", number, gUPP[number].Name))
+	}
+	f.WriteString("\n[UPP.Value]\n")
+	for _, number := range temp {
+		f.WriteString(fmt.Sprintf("%d = \"%s\"\n", number, gUPP[number].Value))
+	}
+	f.WriteString("\n[UPP.Hint]\n")
+	for _, number := range temp {
+		f.WriteString(fmt.Sprintf("%d = \"%s\"\n", number, gUPP[number].Hint))
 	}
 }
 

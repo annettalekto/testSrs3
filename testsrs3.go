@@ -919,7 +919,7 @@ func top() fyne.CanvasObject {
 
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
-	statusLabel := widget.NewLabel("тут будет всякое")
+	statusLabel := widget.NewLabel(" ")
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -961,7 +961,8 @@ func showFormUPP() {
 			str := fmt.Sprintf("%d = \"%s\"", x, paramEntry[x].Text)
 			data = append(data, str)
 		}
-		writeToml(data)
+		// записать в gUPP!!
+		writeTomlUPP()
 	})
 
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)
