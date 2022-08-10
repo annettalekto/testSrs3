@@ -32,15 +32,10 @@ func main() {
 	var err error
 
 	// Инит
-	// debugDeclareParams()
-	// debugGetUPP() //todo отладка
 	getTomlUPP()
 	initIPK()
 	// initDevice()
 	// запросить данные УПП!
-
-	// upp := getTomlUPP() //отладка
-	// readToml(upp)
 
 	err = can25.Init(0x1F, 0x16)
 	if err != nil {
@@ -925,12 +920,6 @@ func top() fyne.CanvasObject {
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
 	statusLabel := widget.NewLabel("тут будет всякое")
-	// type UPP struct {
-	// 	number int
-	// 	label  *widget.Label
-	// 	entry  *widget.Entry
-	// }
-	// var allupp []UPP
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -945,40 +934,6 @@ func showFormUPP() {
 		temp = append(temp, v)
 	}
 	sort.Ints(temp)
-
-	// for _, x := range temp {
-	// 	var val UPP
-	// 	val.number = x
-	// 	val.label = widget.NewLabel(fmt.Sprintf("%-4d %s", x, params[x]))
-	// 	val.label.TextStyle.Monospace = true
-	// 	val.entry = widget.NewEntry()
-	// 	val.entry.TextStyle.Monospace = true
-	// 	val.entry.SetText(uppVal[x])
-	// 	val.entry.OnChanged = func(str string) {
-	// 		statusLabel.SetText(hints[val.number])
-	// 	}
-
-	// 	allupp = append(allupp, val)
-	// 	line := container.NewGridWithColumns(2, val.label, val.entry)
-	// 	b.Add(line)
-	// }
-
-	// for _, x := range temp {
-	// 	val := uppVal[x]
-
-	// 	nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", x, params[x]))
-	// 	nameLabel.TextStyle.Monospace = true
-
-	// 	paramEntry[x] = widget.NewEntry()
-	// 	paramEntry[x].TextStyle.Monospace = true
-	// 	paramEntry[x].SetText(val)
-	// 	paramEntry[x].OnChanged = func(str string) {
-	// 		statusLabel.SetText(hints[x])
-	// 	}
-
-	// 	line := container.NewGridWithColumns(2, nameLabel, paramEntry[x])
-	// 	b.Add(line)
-	// }
 
 	for _, number := range temp {
 		upp := gUPP[number]

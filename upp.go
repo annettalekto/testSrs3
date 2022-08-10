@@ -9,11 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// 3пв
-var params = make(map[int]string)      // просто список параметров todo для всех БУ
-var paramsValue = make(map[int]string) // значения из toml для подгрузки при старте
-var hints = make(map[int]string)
-
+// DataUPP upp
 type DataUPP struct {
 	// Number int
 	Name  string
@@ -82,7 +78,7 @@ func getErrorDescription(sCode string) string {
 	return data.Errors.Description[sCode]
 }
 
-func debugDeclareParams() {
+/*func debugDeclareParams() {
 	params[2] = "Диаметр бандажа первой колёсной пары" // (мм)"
 	paramsValue[2] = "1350"
 	hints[2] = "Возможные значения 600 — 1350"
@@ -157,4 +153,4 @@ func debugDeclareParams() {
 
 	params[26] = "Количество знаков табельного номера"
 	paramsValue[26] = "4"
-}
+}*/
