@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/amdf/ipk"
@@ -10,7 +9,6 @@ import (
 )
 
 var can25 candev.Device
-
 var ipkBox ipk.IPK
 
 var sp ipk.Speed
@@ -72,8 +70,7 @@ func initIPK() (err error) {
 		return
 	}
 
-	fPressureLimit, _ := strconv.ParseFloat(valuePressureLimit, 64)
-	if channel2.Init(channelN6, ipk.DACAtmosphere, fPressureLimit); err != nil {
+	if channel2.Init(channelN6, ipk.DACAtmosphere, gDevice.PressureLimit); err != nil {
 		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
 		return
 	}
@@ -88,15 +85,8 @@ func initIPK() (err error) {
 
 // InitFreqIpkChannel init
 func InitFreqIpkChannel() (err error) {
-	iBandageDiameter1, err := strconv.ParseInt(valueBandageDiameter1, 10, 32)
-	if err != nil {
-		return
-	}
-	iNumberTeeth, err := strconv.ParseInt(valueNumberTeeth, 10, 32)
-	if err != nil {
-		return
-	}
-	if err = sp.Init(fcs, uint32(iNumberTeeth), uint32(iBandageDiameter1)); err == nil {
+
+	if err = sp.Init(fcs, gDevice.NumberTeeth, gDevice.BandageDiameter1); err == nil {
 
 		go func() { // начинаем в фоне обновлять данные по скорости
 			for {
@@ -109,9 +99,17 @@ func InitFreqIpkChannel() (err error) {
 	return
 }
 
+func powerBU(on bool) {
+	fds.Set50V(7, on)
+}
+
+func turt(on bool) {
+	fds.SetTURT(on)
+}
+
 //-------------------------------------------------------------------------------//
 // УПП
-
+/*
 // Наименования УПП
 const (
 	// Properties
@@ -175,4 +173,4 @@ func debugGetUPP() {
 	valueNumberTeeth = "42"
 	valueScaleLimit = "150"
 	valuePressureLimit = "16"
-}
+}*/

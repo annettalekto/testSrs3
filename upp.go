@@ -17,7 +17,17 @@ type DataUPP struct {
 	Hint  string
 }
 
-var gUPP = make(map[int]DataUPP)
+type descriptionType struct {
+	NameBU           string // номерами
+	Power            bool
+	PressureLimit    float64
+	BandageDiameter1 uint32 // изменяются для текущих расчетов на форме! но не в toml
+	BandageDiameter2 uint32
+	NumberTeeth      uint32 // изменяются для текущих расчетов на форме!
+}
+
+var gUPP = make(map[int]DataUPP) // все признаки
+var gDevice descriptionType
 
 func getTomlUPP() {
 	var err error
@@ -41,6 +51,28 @@ func getTomlUPP() {
 		upp.Hint = data.UPP.Hint[i]
 		gUPP[number] = upp
 	}
+
+	// из всех признаков выбираем те что используются в расчётах
+	ival, err := strconv.Atoi(gUPP[2].Value)
+	if err != nil {
+		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[2].Name, ival)
+	}
+	gDevice.BandageDiameter1 = uint32(ival)
+	ival, err = strconv.Atoi(gUPP[3].Value)
+	if err != nil {
+		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[3].Name, ival)
+	}
+	gDevice.BandageDiameter2 = uint32(ival)
+	ival, err = strconv.Atoi(gUPP[7].Value)
+	if err != nil {
+		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[7].Name, ival)
+	}
+	gDevice.NumberTeeth = uint32(ival)
+	gDevice.PressureLimit, err = strconv.ParseFloat(gUPP[8].Value, 64)
+	if err != nil {
+		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[8].Name, gUPP[8].Value)
+	}
+
 	return
 }
 

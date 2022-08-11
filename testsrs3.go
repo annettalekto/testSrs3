@@ -32,8 +32,8 @@ func main() {
 	var err error
 
 	// Инит
-	getTomlUPP()
 	initIPK()
+	getTomlUPP()
 	// initDevice()
 	// запросить данные УПП!
 
@@ -494,31 +494,30 @@ func speed() fyne.CanvasObject {
 	)
 
 	// ---------------------- Доп. параметры
-	numberTeeth, _ := strconv.Atoi(valueNumberTeeth)    // это значения УПП,
-	diameter, _ := strconv.Atoi(valueBandageDiameter1)  // установленные на блоке
-	sp.Init(fcs, uint32(numberTeeth), uint32(diameter)) // их используем как предустановку
+
+	sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // их используем как предустановку
 
 	entryDiameter := newNumericalEntry()
 	entryDiameter.Entry.TextStyle.Monospace = true
-	entryDiameter.Entry.SetText(fmt.Sprintf("%d", diameter))
+	entryDiameter.Entry.SetText(fmt.Sprintf("%d", gDevice.BandageDiameter1))
 	entryDiameter.Entry.OnChanged = func(str string) {
 		if val, err := strconv.Atoi(str); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (диаметр бандажа)\n")
 		} else {
-			diameter = val
-			sp.Init(fcs, uint32(numberTeeth), uint32(diameter)) // используем введенное значение
+			gDevice.BandageDiameter1 = uint32(val)
+			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // используем введенное значение
 		}
 	}
 
 	entryNumberTeeth := newNumericalEntry()
 	entryNumberTeeth.Entry.TextStyle.Monospace = true
-	entryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", numberTeeth))
+	entryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gDevice.NumberTeeth))
 	entryNumberTeeth.Entry.OnChanged = func(str string) {
 		if val, err := strconv.Atoi(str); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (количество зубьев)\n")
 		} else {
-			numberTeeth = val
-			sp.Init(fcs, uint32(numberTeeth), uint32(diameter))
+			gDevice.NumberTeeth = uint32(val)
+			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1))
 		}
 	}
 	addParam := container.NewHBox(widget.NewLabel("Кол-во зубьев:     "), entryNumberTeeth, widget.NewLabel("Диаметр (мм):  "), entryDiameter)
@@ -859,7 +858,6 @@ func outputSignals() fyne.CanvasObject {
 
 // Уставки, входы БУС = считать
 func inputSignals() fyne.CanvasObject {
-	// dummy := widget.NewLabel("")
 
 	var style fyne.TextStyle
 	style.Bold = true
@@ -867,10 +865,10 @@ func inputSignals() fyne.CanvasObject {
 
 	check1 := widget.NewCheck("1", nil)
 	check20 := widget.NewCheck("20", nil)
-	check80 := widget.NewCheck("80", nil)
-	check60 := widget.NewCheck("60", nil)
-	check30 := widget.NewCheck("30", nil)
-	boxRelay := container.NewHBox(check1, check20, check80, check60, check30)
+	checkY := widget.NewCheck(gUPP[14].Value, nil)  // 80 V(ж)
+	checkRY := widget.NewCheck(gUPP[15].Value, nil) // 60 V(кж)
+	checkU := widget.NewCheck(gUPP[16].Value, nil)  // 30 V(упр)
+	boxRelay := container.NewHBox(check1, check20, checkY, checkRY, checkU)
 
 	// labelBUS := widget.NewLabel("Входы БУС:")
 	checkPSS2 := widget.NewCheck("ПСС2", nil)
@@ -881,6 +879,73 @@ func inputSignals() fyne.CanvasObject {
 	boxBUS := container.NewHBox(checkPSS2, checkUhod2, checkPowerEPK, checkPB2, checkEVM)
 
 	box := container.NewHBox(boxRelay, boxBUS)
+
+	go func() {
+		for {
+			bin, err := fas.UintGetBinaryInput()
+			if err != nil {
+				fmt.Printf("Ошибка получения двоичного сигнала\n")
+			}
+
+			if bin&0x100 == 0x100 {
+				check1.SetChecked(true)
+			} else {
+				check1.SetChecked(false)
+			}
+			if bin&0x200 == 0x200 {
+				check20.SetChecked(true)
+			} else {
+				check20.SetChecked(false)
+			}
+			if bin&0x400 == 0x400 {
+				checkY.SetChecked(true)
+			} else {
+				checkY.SetChecked(false)
+			}
+			if bin&0x800 == 0x800 {
+				checkRY.SetChecked(true)
+			} else {
+				checkRY.SetChecked(false)
+			}
+			if bin&0x1000 == 0x1000 {
+				checkU.SetChecked(true)
+			} else {
+				checkU.SetChecked(false)
+			}
+			pss2, _ := fas.GetBinaryInputVal(0) // ПСС2
+			if pss2 {
+				checkPSS2.SetChecked(true)
+			} else {
+				checkPSS2.SetChecked(false)
+			}
+			uhod2, _ := fas.GetBinaryInputVal(1) // УХОД
+			if uhod2 {
+				checkUhod2.SetChecked(true)
+			} else {
+				checkUhod2.SetChecked(false)
+			}
+			epk, _ := fas.GetBinaryInputVal(2) // Пит. ЭПК
+			if epk {
+				checkPowerEPK.SetChecked(true)
+			} else {
+				checkPowerEPK.SetChecked(false)
+			}
+			rb2, _ := fas.GetBinaryInputVal(3) // РБC
+			if rb2 {
+				checkPB2.SetChecked(true)
+			} else {
+				checkPB2.SetChecked(false)
+			}
+			emv, _ := fas.GetBinaryInputVal(4) // ЭМВ
+			if emv {
+				checkEVM.SetChecked(true)
+			} else {
+				checkEVM.SetChecked(false)
+			}
+
+			time.Sleep(time.Second)
+		}
+	}()
 
 	return container.NewVBox(labelRelay, box)
 }
@@ -894,16 +959,19 @@ func top() fyne.CanvasObject {
 	deviceChoice := []string{"БУ-3П", "БУ-3ПА", "БУ-3ПВ", "БУ-4"}
 	var selectDevice *widget.Select
 	selectDevice = widget.NewSelect(deviceChoice, func(s string) {
+		gDevice.NameBU = s
 	})
 	selectDevice.SetSelectedIndex(2)
 
-	powerKPD := binding.NewBool() // питание включается при старте? todo
-	powerKPD.Set(true)            // устанавливается в начале
-	checkPower := widget.NewCheckWithData("Питание КПД", powerKPD)
+	checkPower := widget.NewCheck("Питание КПД", func(on bool) {
+		powerBU(on)
+		gDevice.Power = on
+	})
+	checkPower.SetChecked(true) // питание включается при старте? todo
 
-	turn := binding.NewBool()
-	turn.Set(false)
-	checkTurt := widget.NewCheckWithData("Режим обслуживания", turn)
+	checkTurt := widget.NewCheck("Режим обслуживания", func(on bool) {
+		turt(on)
+	})
 
 	buttonUPP := widget.NewButton("  УПП  ", func() {
 		showFormUPP()
@@ -927,8 +995,8 @@ func showFormUPP() {
 	w.CenterOnScreen()
 
 	b := container.NewVBox()
-	// getTomlUPP()
 
+	getTomlUPP()
 	var temp []int
 	for v := range gUPP {
 		temp = append(temp, v)
