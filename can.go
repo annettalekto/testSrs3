@@ -24,6 +24,8 @@ const (
 	idBI         = 0x580 // состояние клавиатуры
 	idDigitalInd = 1     // fake
 	idAddInd     = 2
+	idSetTime    = 0x5C7
+	idSetUPP     = 0x5C3
 )
 
 // устанавливать время (в режиме обслуживания)
@@ -35,7 +37,7 @@ func setTimeBU(h, m, s int) (err error) {
 	month, _ := strconv.Atoi(dt.Format("1"))
 	d, _ := strconv.Atoi(dt.Format("2"))
 
-	msg.ID = uint32(0x5C7)
+	msg.ID = uint32(idSetTime)
 	msg.Rtr = false
 	msg.Len = 8
 	msg.Data = [8]byte{byte(y), byte(y >> 8), byte(month), byte(d), byte(h), byte(m), byte(s)} //5C7 -  07 E5 01 02 03 04 05 проверить: C7 - 07 E5 01 01 01 12 00
@@ -67,7 +69,7 @@ func setFloatVal(mod int, s string) (err error) {
 	}
 
 	var sendMsg, receiveMsg candev.Message
-	sendMsg.ID = 0x5C3
+	sendMsg.ID = idSetUPP
 	sendMsg.Len = 5
 
 	d1 := int(f)                      // целая
@@ -100,7 +102,7 @@ func setIntVal(mod int, s string) (err error) {
 	}
 
 	var sendMsg, receiveMsg candev.Message
-	sendMsg.ID = 0x5C3
+	sendMsg.ID = idSetUPP
 	sendMsg.Len = 5
 
 	sendMsg.Data[0] = byte(mod)

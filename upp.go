@@ -169,7 +169,17 @@ func checkValueUPP(value, hint string) (result bool) {
 	return
 }
 
-func writeUPPtoBU() bool {
-	// возвращать номер не записанного элемента
-	return true
+func writeUPPtoBU() (error, int) {
+	var err error
+	for number, upp := range gUPP {
+		if number == 10 {
+			err = setFloatVal(number, upp.Value)
+		} else {
+			err = setIntVal(number, upp.Value)
+		}
+		if err != nil {
+			return err, number
+		}
+	}
+	return nil, 0
 }

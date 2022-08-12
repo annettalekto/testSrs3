@@ -985,9 +985,14 @@ func top() fyne.CanvasObject {
 
 //---------------------------------------------------------------------------//
 
+// todo вот после обновления УПП нужно еще и на форме значения обновить? 42 1350
+
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
 	statusLabel := widget.NewLabel(" ")
+
+	// переход в режим обслуживания
+	// defer обратненько
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -1031,12 +1036,17 @@ func showFormUPP() {
 				return
 			}
 		}
-		// записать все в gUPP!
-		// записать gUPP в toml
-		if writeUPPtoBU() {
-			writeTomlUPP() //переименовать
+		// записать все в gUPP
+		for number, val := range gUPP {
+			fmt.Println(val.Value)
+			val.Value = paramEntry[number].Text
+			gUPP[number] = val
+		}
+		if err, number := writeUPPtoBU(); err != nil {
+			statusLabel.SetText(fmt.Sprintf("Ошибка установки значения: «%s»", gUPP[number].Name))
 		} else {
-			// записать в статус ошибку
+			writeTomlUPP() //переименовать todo
+			statusLabel.SetText("УПП записаны успешно")
 		}
 	})
 
