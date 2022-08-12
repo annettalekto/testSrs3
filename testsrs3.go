@@ -998,8 +998,8 @@ func showFormUPP() {
 
 	getTomlUPP()
 	var temp []int
-	for v := range gUPP {
-		temp = append(temp, v)
+	for n := range gUPP {
+		temp = append(temp, n)
 	}
 	sort.Ints(temp)
 
@@ -1023,14 +1023,21 @@ func showFormUPP() {
 	boxScrollLayoutUPP := container.New(layout.NewGridWrapLayout(fyne.NewSize(770, 550)), boxScrollUPP) // чтобы не расползались, нужно место для кнопок
 
 	readButton := widget.NewButton("УПП БУ", nil)
-	writeButton := widget.NewButton("записать", func() {
-		var data []string
-		for _, x := range temp {
-			str := fmt.Sprintf("%d = \"%s\"", x, paramEntry[x].Text)
-			data = append(data, str)
+	writeButton := widget.NewButton("Записать", func() {
+		// проверить введенные данные
+		for number := range gUPP {
+			if !checkValueUPP(paramEntry[number].Text, gUPP[number].Hint) {
+				statusLabel.SetText(fmt.Sprintf("Неверное значение параметра: «%s»", gUPP[number].Name))
+				return
+			}
 		}
-		// записать в gUPP!!
-		writeTomlUPP()
+		// записать все в gUPP!
+		// записать gUPP в toml
+		if writeUPPtoBU() {
+			writeTomlUPP() //переименовать
+		} else {
+			// записать в статус ошибку
+		}
 	})
 
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)

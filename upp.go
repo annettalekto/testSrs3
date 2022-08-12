@@ -5,6 +5,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -120,79 +121,55 @@ func getErrorDescription(sCode string) string {
 	return data.Errors.Description[sCode]
 }
 
-/*func debugDeclareParams() {
-	params[2] = "Диаметр бандажа первой колёсной пары" // (мм)"
-	paramsValue[2] = "1350"
-	hints[2] = "Возможные значения 600 — 1350"
+func checkValueUPP(value, hint string) (result bool) {
+	fvalue, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		fmt.Printf("Ошибка конвертации значения\n")
+	}
 
-	params[3] = "Диаметр бандажа второй колёсной пары" // (мм)"
-	paramsValue[3] = "1350"
-	hints[3] = "Возможные значения 600 — 1350"
+	// 16 = "Диапазон значений [0 - 150]"
+	if strings.Contains(hint, "Диапазон") {
+		str := strings.TrimSuffix(hint, "]")
+		inx := strings.IndexRune(str, '[')
+		str = str[inx+1:]
+		str = strings.ReplaceAll(str, " ", "")
+		smin, smax, _ := strings.Cut(str, "-")
+		min, err := strconv.ParseFloat(smin, 64)
+		if err != nil {
+			fmt.Printf("Ошибка получения значения из подсказки\n")
+		}
+		max, err := strconv.ParseFloat(smax, 64)
+		if err != nil {
+			fmt.Printf("Ошибка получения значения из подсказки\n")
+		}
+		if (fvalue >= min) && (fvalue <= max) {
+			result = true
+		} else {
+			result = false
+		}
+	} else {
+		// 17 = "Возможные значения [1, 2, 3]"
+		str := strings.TrimSuffix(hint, "]")
+		inx := strings.IndexRune(str, '[')
+		str = str[inx+1:]
+		str = strings.ReplaceAll(str, " ", "")
+		sl := strings.Split(str, ",")
+		for _, val := range sl {
+			fv, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				fmt.Printf("Ошибка конвертации значения\n")
+			}
+			if fv == fvalue {
+				result = true
+				break
+			}
+		}
+	}
 
-	params[4] = "Наличие МПМЭ"            // названия тоже могут отличаться в разных бу, БУ известно заранее
-	paramsValue[4] = "1"                  // todo формировать для каждого блока свое
-	hints[4] = "Возможные значения: 0, 1" // подсказки тоже или считать из toml
+	return
+}
 
-	params[5] = "Тип локомотива или электросекции"
-	paramsValue[5] = "111"
-	hints[5] = "Возможные значения 111 - 999"
-
-	params[6] = "Номер локомотива или электросекции"
-	paramsValue[6] = "1"
-
-	params[7] = "Число зубьев датчика угла поворота"
-	paramsValue[7] = "42"
-
-	params[8] = "Верхний предел шкалы"
-	paramsValue[8] = "100"
-
-	params[9] = "Дискретность регистрации пути" //"Масштаб регистрации шкалы для БР-2М"
-	paramsValue[9] = "100"
-
-	params[10] = "Дискретность регистрации скорости" //"Дискретность регистрации скорости для БР-2М"
-	paramsValue[10] = "1.0"
-
-	params[11] = "Наличие БР-2М"
-	paramsValue[11] = "0"
-
-	params[12] = "Верхний предел измерения давления в ТЦ" // по 2 каналу"
-	paramsValue[12] = "16"
-
-	params[13] = "Признак наличия блока контроля"
-	paramsValue[13] = "1"
-
-	params[14] = "Уставка скорости V(ж)"
-	paramsValue[14] = "45"
-
-	params[15] = "Уставка скорости V(кж)"
-	paramsValue[15] = "30"
-
-	params[16] = "Уставка скорости V(упр)"
-	paramsValue[16] = "10"
-
-	params[17] = "Признак одной или двух кабин или МВПС"
-	paramsValue[17] = "1"
-
-	params[18] = "Код варианта системы АЛС"
-	paramsValue[18] = "10"
-
-	params[19] = "Признак наличия БУС"
-	paramsValue[19] = "0"
-
-	params[20] = "Кол-во метров для гребнесмазки"
-	paramsValue[20] = "15"
-
-	params[21] = "Наличие комплекса КВАРТА"
-	paramsValue[21] = "0"
-
-	params[22] = "Дискретность регистрации топлива"
-	paramsValue[22] = "10"
-
-	// params[23] = "Дата" нужно ли записывать не текущую дату?
-	// params[24] = "Год"
-	params[25] = "Количество дополнительных параметров"
-	paramsValue[25] = "0"
-
-	params[26] = "Количество знаков табельного номера"
-	paramsValue[26] = "4"
-}*/
+func writeUPPtoBU() bool {
+	// возвращать номер не записанного элемента
+	return true
+}
