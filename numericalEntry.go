@@ -10,7 +10,7 @@ import (
 
 type numericalEntry struct {
 	widget.Entry
-	Entered bool
+	// Entered bool // -> OnSubmitted todo
 }
 
 func newNumericalEntry() *numericalEntry {
@@ -28,7 +28,7 @@ func (e *numericalEntry) TypedRune(r rune) {
 }
 
 // KP_Enter
-func (e *numericalEntry) TypedKey(key *fyne.KeyEvent) {
+/*func (e *numericalEntry) TypedKey(key *fyne.KeyEvent) {
 	e.Entered = false
 
 	switch key.Name {
@@ -46,7 +46,7 @@ func (e *numericalEntry) TypedKey(key *fyne.KeyEvent) {
 	// } else {
 	// 	e.TypedKey(key)
 	// }
-}
+}*/
 
 func (e *numericalEntry) TypedShortcut(shortcut fyne.Shortcut) {
 	paste, ok := shortcut.(*fyne.ShortcutPaste)
