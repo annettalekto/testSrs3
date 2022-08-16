@@ -373,9 +373,10 @@ func getCAN() {
 // Скорость, дистанция, давление
 func speed() fyne.CanvasObject {
 	var err error
+
 	// ------------------------- box 1 ----------------------------
 
-	separately := binding.NewBool() // cовместное-раздельное управление: false вместе
+	separately := binding.NewBool() // cовместное-раздельное управление
 	direction1 := uint8(ipk.MotionOnward)
 	direction2 := uint8(ipk.MotionOnward)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
@@ -385,22 +386,17 @@ func speed() fyne.CanvasObject {
 	textSpeed := widget.NewLabelWithStyle("Имитация движения:", fyne.TextAlignCenter, style)
 
 	dummy := widget.NewLabel("")
-	entrySpeed1 := newNumericalEntry() // todo заменять запятую на точку? игнорировать запятую?
+	entrySpeed1 := newNumericalEntry()
 	entrySpeed2 := newNumericalEntry()
 	entryAccel1 := newNumericalEntry()
 	entryAccel2 := newNumericalEntry()
 	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
-	// ---------------------- обработка скорости
+	// обработка скорости
 	entrySpeed1.Entry.Wrapping = fyne.TextTruncate
 	entrySpeed1.Entry.TextStyle.Monospace = true
 	entrySpeed1.Entry.SetPlaceHolder("0.0")
 	entrySpeed1.Entry.OnChanged = func(str string) {
-		// str = strings.ReplaceAll(str, ",", ".")
-		// speed1, err = strconv.ParseFloat(str, 64)
-		// if err != nil {
-		// 	fmt.Printf("Ошибка перевода строки в число (скорость 1)\n")
-		// }
 		if sep, _ := separately.Get(); !sep { // !не раздельное управление
 			speed2 = speed1                // тоже в переменную
 			entrySpeed2.Entry.SetText(str) // и в поле второго канала скорости
@@ -409,64 +405,96 @@ func speed() fyne.CanvasObject {
 	entrySpeed1.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed1, err = strconv.ParseFloat(str, 64); err != nil {
-			fmt.Printf("Ошибка перевода строки в число (скорость 1)\n") // todo в статус
+			fmt.Printf("Ошибка перевода строки в число (скорость 1)\n")
+			gStatusString.Set("Ошибка в поле ввода «Скорость 1»")
 			return
 		}
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
-			fmt.Printf("Ошибка установки скорости") // todo в статус
+			fmt.Printf("Ошибка установки скорости")
+			gStatusString.Set("Ошибка установки скорости")
 		}
-		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1)) // показываем что установлено с верной точностью
+		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 		entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
-		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err) //todo происходит округление, не допускать не корректного! 1,5 -> 2
+		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 	}
 
 	entrySpeed2.Entry.Wrapping = fyne.TextTruncate
 	entrySpeed2.Entry.TextStyle.Monospace = true
 	entrySpeed2.Entry.SetPlaceHolder("0.0")
 	entrySpeed2.Entry.OnChanged = func(str string) {
-		str = strings.ReplaceAll(str, ",", ".")
-		speed2, err = strconv.ParseFloat(str, 64)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (скорость 2)\n")
-		}
 		if sep, _ := separately.Get(); !sep {
 			speed1 = speed2
 			entrySpeed1.Entry.SetText(str)
 		}
 	}
+	entrySpeed2.Entry.OnSubmitted = func(str string) {
+		str = strings.ReplaceAll(str, ",", ".")
+		if speed2, err = strconv.ParseFloat(str, 64); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (скорость 2)\n")
+			gStatusString.Set("Ошибка в поле ввода «Скорость 2»")
+			return
+		}
+		if err = sp.SetSpeed(speed1, speed2); err != nil {
+			fmt.Printf("Ошибка установки скорости")
+			gStatusString.Set("Ошибка установки скорости")
+		}
+		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
+		entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
+	}
 
-	// ---------------------- обработка ускорения
+	// обработка ускорения
 	entryAccel1.Entry.Wrapping = fyne.TextTruncate
 	entryAccel1.Entry.TextStyle.Monospace = true
 	entryAccel1.Entry.SetPlaceHolder("0.00")
 	entryAccel1.Entry.OnChanged = func(str string) {
-		str = strings.ReplaceAll(str, ",", ".")
-		accel1, err = strconv.ParseFloat(str, 64)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
-		}
 		if sep, _ := separately.Get(); !sep {
 			accel2 = accel1
 			entryAccel2.Entry.SetText(str)
 		}
+	}
+	entryAccel1.Entry.OnSubmitted = func(str string) {
+		str = strings.ReplaceAll(str, ",", ".")
+		if accel1, err = strconv.ParseFloat(str, 64); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
+			gStatusString.Set("Ошибка в поле ввода «Ускорение 1»")
+			return
+		}
+		if err = sp.SetAcceleration(accel1, accel2); err != nil {
+			fmt.Printf("Ошибка установки ускорения\n")
+			gStatusString.Set("Ошибка установки ускорения")
+		}
+		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
+		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
+		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
 	}
 
 	entryAccel2.Entry.Wrapping = fyne.TextTruncate
 	entryAccel2.Entry.TextStyle.Monospace = true
 	entryAccel2.Entry.SetPlaceHolder("0.00")
 	entryAccel2.Entry.OnChanged = func(str string) {
-		str = strings.ReplaceAll(str, ",", ".")
-		accel2, err = strconv.ParseFloat(str, 64)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (ускорение 2)\n")
-		}
 		if sep, _ := separately.Get(); !sep {
 			accel1 = accel2
 			entryAccel1.Entry.SetText(str)
 		}
 	}
+	entryAccel2.Entry.OnSubmitted = func(str string) {
+		str = strings.ReplaceAll(str, ",", ".")
+		if accel2, err = strconv.ParseFloat(str, 64); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (ускорение 2)\n")
+			gStatusString.Set("Ошибка в поле ввода «Ускорение 2»")
+			return
+		}
+		if err = sp.SetAcceleration(accel1, accel2); err != nil {
+			fmt.Printf("Ошибка установки ускорения\n")
+			gStatusString.Set("Ошибка установки ускорения")
+		}
+		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
+		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
+		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
+	}
 
-	// ---------------------- обработка направления
+	// обработка направления
 	directionChoice := []string{"Вперёд", "Назад"}
 	var selectDirection1, selectDirection2 *widget.Select
 
@@ -474,7 +502,7 @@ func speed() fyne.CanvasObject {
 		sep, _ := separately.Get()
 		if s == "Вперёд" {
 			direction1 = ipk.MotionOnward
-			if !sep && selectDirection2.SelectedIndex() != 0 { // бесконечный вызов!
+			if !sep && selectDirection2.SelectedIndex() != 0 {
 				selectDirection2.SetSelectedIndex(0)
 			}
 		} else {
@@ -500,9 +528,8 @@ func speed() fyne.CanvasObject {
 		}
 		sp.SetMotion(direction2)
 	})
-
-	selectDirection1.SetSelectedIndex(0) //"Вперёд")
-	selectDirection2.SetSelectedIndex(0) //"Вперёд")
+	selectDirection1.SetSelectedIndex(0) //"Вперёд"
+	selectDirection2.SetSelectedIndex(0) //"Вперёд"
 
 	box1 := container.NewGridWithColumns(
 		3,
@@ -513,9 +540,8 @@ func speed() fyne.CanvasObject {
 	)
 	boxSpeed := container.NewVBox(textSpeed, box1, separatlyCheck)
 
-	// ---------------------- Доп. параметры
-
-	sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // их используем как предустановку
+	// обработка доп. параметры
+	sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // предустановка
 
 	entryDiameter := newNumericalEntry()
 	entryDiameter.Entry.Wrapping = fyne.TextWrapOff
@@ -524,9 +550,10 @@ func speed() fyne.CanvasObject {
 	entryDiameter.Entry.OnChanged = func(str string) {
 		if val, err := strconv.Atoi(str); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (диаметр бандажа)\n")
+			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
 		} else {
 			gDevice.BandageDiameter1 = uint32(val)
-			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // используем введенное значение
+			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1))
 		}
 	}
 
@@ -537,21 +564,23 @@ func speed() fyne.CanvasObject {
 	entryNumberTeeth.Entry.OnChanged = func(str string) {
 		if val, err := strconv.Atoi(str); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (количество зубьев)\n")
+			gStatusString.Set("Ошибка в поле ввода «Кол-во зубьев»")
 		} else {
 			gDevice.NumberTeeth = uint32(val)
 			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1))
 		}
 	}
-	// addParam := container.NewGridWithColumns(4, widget.NewLabel("Число зубьев:"), entryNumberTeeth, widget.NewLabel("Диаметр (мм):"), entryDiameter) // так растягивается главное окно  -- надписи слишком длинные
 	addParam := container.NewHBox(widget.NewLabel("Число зубьев:"), entryNumberTeeth, widget.NewLabel("Диаметр (мм):"), entryDiameter)
+
 	// ------------------------- box 2 ----------------------------
-	// Путь:
+
 	startDistanceCheck := false
 	distance := 0
 	startDistance := uint32(0)
 
 	textMileage := widget.NewLabelWithStyle("Имитация пути (м):", fyne.TextAlignCenter, style)
 
+	// обработка пути
 	entryMileage := newNumericalEntry()
 	entryMileage.Entry.Wrapping = fyne.TextTruncate
 	entryMileage.Entry.TextStyle.Monospace = true
@@ -584,98 +613,15 @@ func speed() fyne.CanvasObject {
 	})
 	labelMileage := widget.NewLabel("0")
 
-	box3 := container.NewGridWithColumns(
+	box2 := container.NewGridWithColumns(
 		3,
 		widget.NewLabel("Дистанция:"), entryMileage, buttonMileage,
 		widget.NewLabel("Текущая:"), labelMileage,
 	)
-	boxMileage := container.NewVBox(textMileage, box3)
+	boxMileage := container.NewVBox(textMileage, box2)
 
-	// ------------------------- box 3 ----------------------------
-	// Давление
-
-	var press1, press2, press3 float64
-
-	textPress := widget.NewLabelWithStyle("Имитация давления (кгс/см²):", fyne.TextAlignCenter, style)
-
-	entryPress1 := newNumericalEntry()
-	entryPress1.Entry.Wrapping = fyne.TextTruncate
-	entryPress1.Entry.TextStyle.Monospace = true
-	entryPress1.Entry.SetPlaceHolder("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
-	entryPress1.Entry.OnChanged = func(str string) {
-		str = strings.ReplaceAll(str, ",", ".")
-		press1, err = strconv.ParseFloat(str, 64)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (давление 1)\n")
-		}
-	}
-
-	entryPress2 := newNumericalEntry()
-	entryPress2.Entry.Wrapping = fyne.TextTruncate
-	entryPress2.Entry.TextStyle.Monospace = true
-	entryPress2.Entry.SetPlaceHolder("0.00") // из УПП ~ 16 атм
-	entryPress2.Entry.OnChanged = func(str string) {
-		str = strings.ReplaceAll(str, ",", ".")
-		press2, err = strconv.ParseFloat(str, 64)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (давление 2)\n")
-		}
-	}
-
-	entryPress3 := newNumericalEntry()
-	entryPress3.Entry.Wrapping = fyne.TextTruncate
-	entryPress3.Entry.TextStyle.Monospace = true
-	entryPress3.Entry.SetPlaceHolder("0.00") // 20 атм
-	entryPress3.Entry.OnChanged = func(str string) {
-		str = strings.ReplaceAll(str, ",", ".")
-		press3, err = strconv.ParseFloat(str, 64)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (давление 3)\n")
-		}
-	}
-
-	box4 := container.NewGridWithColumns(
-		3,
-		widget.NewLabel("Канал 1:"), widget.NewLabel("Канал 2:"), widget.NewLabel("Канал 3:"),
-		entryPress1, entryPress2, entryPress3,
-	)
-	boxPress := container.NewVBox(textPress, box4)
-
-	boxAll := container.NewVBox(boxSpeed, boxMileage, widget.NewLabel("Параметры имитатора:"), addParam, boxPress, dummy)
-	// boxSpeedAndMileage := container.NewVSplit(boxSpeed, boxMileage)
-	// boxAll := container.NewVSplit(boxSpeedAndMileage, boxPress)
-
-	box := container.NewHBox(dummy, boxAll, dummy)
-
-	// -------------------- установка значений -----------------------
-
-	// если Enter был нажат, значит ввод закончен
 	go func() {
 		for {
-			// if entrySpeed1.Entered || entrySpeed2.Entered {
-			// 	err = sp.SetSpeed(speed1, speed2)
-			// 	if err != nil {
-			// 		fmt.Printf("Ошибка установки скорости")
-			// 	}
-			// 	entrySpeed1.Entered = false
-			// 	entrySpeed2.Entered = false
-			// 	entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
-			// 	entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
-			// 	fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err) //todo происходит округление, не допускать не корректного! 1,5 -> 2
-			// }
-
-			// if entryAccel1.Entered || entryAccel2.Entered {
-			err = sp.SetAcceleration(accel1, accel2)
-			if err != nil {
-				fmt.Printf("Ошибка установки ускорения\n")
-			}
-			// entryAccel1.Entered = false
-			// entryAccel2.Entered = false
-			entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
-			entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
-			fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
-			// }
-
 			if startDistanceCheck {
 				m, _, err := sp.GetWay()
 				if err != nil {
@@ -683,40 +629,84 @@ func speed() fyne.CanvasObject {
 				}
 				labelMileage.SetText(fmt.Sprintf("%d", startDistance-m))
 			}
-
-			// if entryPress1.Entered {
-			err = channel1.Set(press1)
-			if err != nil {
-				fmt.Printf("Ошибка установки давления 1\n")
-			}
-			fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
-			// entryPress1.Entered = false
-			entryPress1.Entry.SetText(fmt.Sprintf("%.2f", press1))
-			// }
-			// if entryPress2.Entered {
-			err = channel2.Set(press2)
-			if err != nil {
-				fmt.Printf("Ошибка установки давления 2\n")
-			}
-			fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
-			// entryPress2.Entered = false
-			entryPress2.Entry.SetText(fmt.Sprintf("%.2f", press2))
-			// }
-			// if entr/yPress3.Entered {
-			err = channel3.Set(press3)
-			if err != nil {
-				fmt.Printf("Ошибка установки давления 3\n")
-			}
-			fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
-			// entryPress3.Entered = false
-			entryPress3.Entry.SetText(fmt.Sprintf("%.2f", press3))
-			// }
-
 			time.Sleep(time.Second)
 		}
 	}()
 
-	return box //container.New(layout.NewGridWrapLayout(fyne.NewSize(450, 850)), box)
+	// ------------------------- box 3 ----------------------------
+
+	var press1, press2, press3 float64
+
+	textPress := widget.NewLabelWithStyle("Имитация давления (кгс/см²):", fyne.TextAlignCenter, style)
+
+	// обработка давления
+	entryPress1 := newNumericalEntry()
+	entryPress1.Entry.Wrapping = fyne.TextTruncate
+	entryPress1.Entry.TextStyle.Monospace = true
+	entryPress1.Entry.SetPlaceHolder("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
+	entryPress1.Entry.OnSubmitted = func(str string) {
+		str = strings.ReplaceAll(str, ",", ".")
+		if press1, err = strconv.ParseFloat(str, 64); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (давление 1)\n")
+			gStatusString.Set("Ошибка в поле ввода «Давление 1»")
+			return
+		}
+		if err = channel1.Set(press1); err != nil {
+			fmt.Printf("Ошибка установки давления 1\n")
+			gStatusString.Set("Ошибка установки давления 1")
+		}
+		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
+		entryPress1.Entry.SetText(fmt.Sprintf("%.2f", press1))
+	}
+
+	entryPress2 := newNumericalEntry()
+	entryPress2.Entry.Wrapping = fyne.TextTruncate
+	entryPress2.Entry.TextStyle.Monospace = true
+	entryPress2.Entry.SetPlaceHolder("0.00") // из УПП ~ 16 атм
+	entryPress2.Entry.OnSubmitted = func(str string) {
+		str = strings.ReplaceAll(str, ",", ".")
+		if press2, err = strconv.ParseFloat(str, 64); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (давление 2)\n")
+			gStatusString.Set("Ошибка в поле ввода «Давление 2»")
+			return
+		}
+		if err = channel2.Set(press2); err != nil {
+			fmt.Printf("Ошибка установки давления 2\n")
+			gStatusString.Set("Ошибка установки давления 2")
+		}
+		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
+		entryPress2.Entry.SetText(fmt.Sprintf("%.2f", press2))
+	}
+
+	entryPress3 := newNumericalEntry()
+	entryPress3.Entry.Wrapping = fyne.TextTruncate
+	entryPress3.Entry.TextStyle.Monospace = true
+	entryPress3.Entry.SetPlaceHolder("0.00") // 20 атм
+	entryPress3.Entry.OnSubmitted = func(str string) {
+		str = strings.ReplaceAll(str, ",", ".")
+		if press3, err = strconv.ParseFloat(str, 64); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (давление 3)\n")
+			gStatusString.Set("Ошибка в поле ввода «Давление 3»")
+			return
+		}
+		if err = channel3.Set(press3); err != nil {
+			fmt.Printf("Ошибка установки давления 3\n")
+		}
+		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
+		entryPress3.Entry.SetText(fmt.Sprintf("%.2f", press3))
+	}
+
+	box3 := container.NewGridWithColumns(
+		3,
+		widget.NewLabel("Канал 1:"), widget.NewLabel("Канал 2:"), widget.NewLabel("Канал 3:"),
+		entryPress1, entryPress2, entryPress3,
+	)
+	boxPress := container.NewVBox(textPress, box3)
+
+	boxAll := container.NewVBox(boxSpeed, boxMileage, widget.NewLabel("Параметры имитатора:"), addParam, boxPress, dummy)
+	box := container.NewHBox(dummy, boxAll, dummy)
+
+	return box
 }
 
 //---------------------------------------------------------------------------//

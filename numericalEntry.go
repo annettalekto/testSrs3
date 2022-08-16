@@ -10,7 +10,6 @@ import (
 
 type numericalEntry struct {
 	widget.Entry
-	// Entered bool // -> OnSubmitted todo
 }
 
 func newNumericalEntry() *numericalEntry {
@@ -26,27 +25,6 @@ func (e *numericalEntry) TypedRune(r rune) {
 		e.Entry.TypedRune(r)
 	}
 }
-
-// KP_Enter
-/*func (e *numericalEntry) TypedKey(key *fyne.KeyEvent) {
-	e.Entered = false
-
-	switch key.Name {
-	case fyne.KeyEnter, fyne.KeyReturn:
-		e.Entered = true
-		fmt.Printf("Нажата клавиша %s\n", key.Name) // todo убрать после отладки
-	case fyne.KeyBackspace, fyne.KeyDelete, fyne.KeyRight, fyne.KeyLeft, fyne.KeyHome, fyne.KeyEnd:
-		e.Entry.TypedKey(key)
-
-	}
-
-	// if key.Name == "Return" {
-	// 	// send m.Text somewhere...
-	// 	fmt.Printf("Нажата клавиша %s", key.Name)
-	// } else {
-	// 	e.TypedKey(key)
-	// }
-}*/
 
 func (e *numericalEntry) TypedShortcut(shortcut fyne.Shortcut) {
 	paste, ok := shortcut.(*fyne.ShortcutPaste)
