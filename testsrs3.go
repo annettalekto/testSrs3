@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -32,15 +33,17 @@ func main() {
 	var err error
 
 	// Инит
-	initIPK()
 	getTomlUPP()
-	// initDevice()
-	// запросить данные УПП!
+	err = initIPK()
+	if err != nil {
+		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
+		err = errors.New("Ошибка инициализации ИПК")
+	}
 
 	err = can25.Init(0x1F, 0x16)
 	if err != nil {
 		fmt.Printf("Ошибка инициализации CAN: %v\n", err)
-		// return // todo запускать форму при отсутствие can?
+		err = errors.New("Ошибка инициализации CAN")
 	}
 	can25.Run()
 	defer can25.Stop()
@@ -51,7 +54,6 @@ func main() {
 	// w.Resize(fyne.NewSize(800, 600))
 	w.CenterOnScreen()
 	w.SetMaster()
-	// dummy := widget.NewLabel("  ")
 
 	menu := fyne.NewMainMenu(
 		fyne.NewMenu("Файл",
@@ -77,12 +79,14 @@ func main() {
 		}
 	}()
 
-	gStatusLabel := widget.NewLabel("Статус")
+	// одна общая строка для вывода ошибок, подсказок
 	var style fyne.TextStyle
 	style.Monospace = true
+	gStatusLabel := widget.NewLabel("Статус")
 	gStatusLabel.TextStyle = style
 	gStatusString = binding.NewString()
 	gStatusLabel.Bind(gStatusString)
+	gStatusString.Set(fmt.Sprintf("%s", err.Error()))
 
 	// Элементы
 	boxSpeed := speed()
@@ -99,18 +103,17 @@ func main() {
 	box4 := container.NewHSplit(box3, boxCAN)
 
 	box := container.NewVSplit(box4, gStatusLabel)
-	// gStatusString.Set("Тут будет статус операции, подсказака или вывод ошибки")
 
 	w.SetContent(box)
 	w.ShowAndRun()
 }
 
-var currentTheme bool // светлая тема false
+var gCurrentTheme bool
 
 func changeTheme(a fyne.App) {
-	currentTheme = !currentTheme
+	gCurrentTheme = !gCurrentTheme
 
-	if currentTheme {
+	if gCurrentTheme {
 		a.Settings().SetTheme(theme.DarkTheme())
 	} else {
 		a.Settings().SetTheme(theme.LightTheme())
@@ -148,6 +151,13 @@ func abautProgramm() {
 	w.Show() // ShowAndRun -- panic!
 }
 
+func getTitle(str string) *widget.Label {
+	var style fyne.TextStyle
+	style.Bold = true
+
+	return widget.NewLabelWithStyle(str, fyne.TextAlignCenter, style)
+}
+
 //---------------------------------------------------------------------------//
 // 								Данные CAN
 //---------------------------------------------------------------------------//
@@ -180,11 +190,7 @@ func safeError(data [8]byte) {
 }
 
 func getListCAN() fyne.CanvasObject {
-	var style fyne.TextStyle
-	style.Bold = true
-	text := widget.NewLabelWithStyle("Данные CAN:", fyne.TextAlignCenter, style)
 
-	// получение данных
 	requestCAN()
 	getCAN()
 
@@ -293,7 +299,7 @@ func getListCAN() fyne.CanvasObject {
 	}()
 
 	boxList := container.New(layout.NewGridWrapLayout(fyne.NewSize(290, 695)), list)
-	box := container.NewVBox(text, boxList)
+	box := container.NewVBox(getTitle("Данные CAN:"), boxList)
 
 	return box
 }
@@ -370,6 +376,14 @@ func getCAN() {
 // 						ИНТЕРФЕЙС: ФАС, ФЧС
 //---------------------------------------------------------------------------//
 
+func newSpecialEntry(placeHolder string) (e *numericalEntry) {
+	e = newNumericalEntry()
+	e.Entry.Wrapping = fyne.TextTruncate
+	e.Entry.TextStyle.Monospace = true
+	e.Entry.SetPlaceHolder(placeHolder)
+	return e
+}
+
 // Скорость, дистанция, давление
 func speed() fyne.CanvasObject {
 	var err error
@@ -380,22 +394,12 @@ func speed() fyne.CanvasObject {
 	direction1 := uint8(ipk.MotionOnward)
 	direction2 := uint8(ipk.MotionOnward)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
-
-	var style fyne.TextStyle
-	style.Bold = true
-	textSpeed := widget.NewLabelWithStyle("Имитация движения:", fyne.TextAlignCenter, style)
-
 	dummy := widget.NewLabel("")
-	entrySpeed1 := newNumericalEntry()
-	entrySpeed2 := newNumericalEntry()
-	entryAccel1 := newNumericalEntry()
-	entryAccel2 := newNumericalEntry()
-	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
 	// обработка скорости
-	entrySpeed1.Entry.Wrapping = fyne.TextTruncate
-	entrySpeed1.Entry.TextStyle.Monospace = true
-	entrySpeed1.Entry.SetPlaceHolder("0.0")
+	entrySpeed1 := newSpecialEntry("0.0")
+	entrySpeed2 := newSpecialEntry("0.0")
+
 	entrySpeed1.Entry.OnChanged = func(str string) {
 		if sep, _ := separately.Get(); !sep { // !не раздельное управление
 			speed2 = speed1                // тоже в переменную
@@ -418,9 +422,6 @@ func speed() fyne.CanvasObject {
 		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 	}
 
-	entrySpeed2.Entry.Wrapping = fyne.TextTruncate
-	entrySpeed2.Entry.TextStyle.Monospace = true
-	entrySpeed2.Entry.SetPlaceHolder("0.0")
 	entrySpeed2.Entry.OnChanged = func(str string) {
 		if sep, _ := separately.Get(); !sep {
 			speed1 = speed2
@@ -444,9 +445,9 @@ func speed() fyne.CanvasObject {
 	}
 
 	// обработка ускорения
-	entryAccel1.Entry.Wrapping = fyne.TextTruncate
-	entryAccel1.Entry.TextStyle.Monospace = true
-	entryAccel1.Entry.SetPlaceHolder("0.00")
+	entryAccel1 := newSpecialEntry("0.00")
+	entryAccel2 := newSpecialEntry("0.00")
+
 	entryAccel1.Entry.OnChanged = func(str string) {
 		if sep, _ := separately.Get(); !sep {
 			accel2 = accel1
@@ -469,9 +470,6 @@ func speed() fyne.CanvasObject {
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
 	}
 
-	entryAccel2.Entry.Wrapping = fyne.TextTruncate
-	entryAccel2.Entry.TextStyle.Monospace = true
-	entryAccel2.Entry.SetPlaceHolder("0.00")
 	entryAccel2.Entry.OnChanged = func(str string) {
 		if sep, _ := separately.Get(); !sep {
 			accel1 = accel2
@@ -531,6 +529,8 @@ func speed() fyne.CanvasObject {
 	selectDirection1.SetSelectedIndex(0) //"Вперёд"
 	selectDirection2.SetSelectedIndex(0) //"Вперёд"
 
+	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
+
 	box1 := container.NewGridWithColumns(
 		3,
 		dummy, widget.NewLabel("Канал 1"), widget.NewLabel("Канал 2"),
@@ -538,39 +538,8 @@ func speed() fyne.CanvasObject {
 		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, entryAccel2,
 		widget.NewLabel("Направление:"), selectDirection1, selectDirection2,
 	)
-	boxSpeed := container.NewVBox(textSpeed, box1, separatlyCheck)
 
-	// обработка доп. параметры
-	sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // предустановка
-
-	entryDiameter := newNumericalEntry()
-	entryDiameter.Entry.Wrapping = fyne.TextWrapOff
-	entryDiameter.Entry.TextStyle.Monospace = true
-	entryDiameter.Entry.SetText(fmt.Sprintf("%d", gDevice.BandageDiameter1))
-	entryDiameter.Entry.OnChanged = func(str string) {
-		if val, err := strconv.Atoi(str); err != nil {
-			fmt.Printf("Ошибка перевода строки в число (диаметр бандажа)\n")
-			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
-		} else {
-			gDevice.BandageDiameter1 = uint32(val)
-			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1))
-		}
-	}
-
-	entryNumberTeeth := newNumericalEntry()
-	entryNumberTeeth.Entry.Wrapping = fyne.TextWrapOff
-	entryNumberTeeth.Entry.TextStyle.Monospace = true
-	entryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gDevice.NumberTeeth))
-	entryNumberTeeth.Entry.OnChanged = func(str string) {
-		if val, err := strconv.Atoi(str); err != nil {
-			fmt.Printf("Ошибка перевода строки в число (количество зубьев)\n")
-			gStatusString.Set("Ошибка в поле ввода «Кол-во зубьев»")
-		} else {
-			gDevice.NumberTeeth = uint32(val)
-			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1))
-		}
-	}
-	addParam := container.NewHBox(widget.NewLabel("Число зубьев:"), entryNumberTeeth, widget.NewLabel("Диаметр (мм):"), entryDiameter)
+	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck)
 
 	// ------------------------- box 2 ----------------------------
 
@@ -578,13 +547,8 @@ func speed() fyne.CanvasObject {
 	distance := 0
 	startDistance := uint32(0)
 
-	textMileage := widget.NewLabelWithStyle("Имитация пути (м):", fyne.TextAlignCenter, style)
-
 	// обработка пути
-	entryMileage := newNumericalEntry()
-	entryMileage.Entry.Wrapping = fyne.TextTruncate
-	entryMileage.Entry.TextStyle.Monospace = true
-	entryMileage.Entry.SetPlaceHolder("20000")
+	entryMileage := newSpecialEntry("20000")
 	entryMileage.Entry.OnChanged = func(str string) {
 		distance, err = strconv.Atoi(str)
 		if err != nil {
@@ -618,7 +582,7 @@ func speed() fyne.CanvasObject {
 		widget.NewLabel("Дистанция:"), entryMileage, buttonMileage,
 		widget.NewLabel("Текущая:"), labelMileage,
 	)
-	boxMileage := container.NewVBox(textMileage, box2)
+	boxMileage := container.NewVBox(getTitle("Имитация пути (м):"), box2)
 
 	go func() {
 		for {
@@ -637,13 +601,8 @@ func speed() fyne.CanvasObject {
 
 	var press1, press2, press3 float64
 
-	textPress := widget.NewLabelWithStyle("Имитация давления (кгс/см²):", fyne.TextAlignCenter, style)
-
 	// обработка давления
-	entryPress1 := newNumericalEntry()
-	entryPress1.Entry.Wrapping = fyne.TextTruncate
-	entryPress1.Entry.TextStyle.Monospace = true
-	entryPress1.Entry.SetPlaceHolder("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
+	entryPress1 := newSpecialEntry("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
 	entryPress1.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if press1, err = strconv.ParseFloat(str, 64); err != nil {
@@ -659,10 +618,7 @@ func speed() fyne.CanvasObject {
 		entryPress1.Entry.SetText(fmt.Sprintf("%.2f", press1))
 	}
 
-	entryPress2 := newNumericalEntry()
-	entryPress2.Entry.Wrapping = fyne.TextTruncate
-	entryPress2.Entry.TextStyle.Monospace = true
-	entryPress2.Entry.SetPlaceHolder("0.00") // из УПП ~ 16 атм
+	entryPress2 := newSpecialEntry("0.00") // из УПП ~ 16 атм
 	entryPress2.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if press2, err = strconv.ParseFloat(str, 64); err != nil {
@@ -678,10 +634,7 @@ func speed() fyne.CanvasObject {
 		entryPress2.Entry.SetText(fmt.Sprintf("%.2f", press2))
 	}
 
-	entryPress3 := newNumericalEntry()
-	entryPress3.Entry.Wrapping = fyne.TextTruncate
-	entryPress3.Entry.TextStyle.Monospace = true
-	entryPress3.Entry.SetPlaceHolder("0.00") // 20 атм
+	entryPress3 := newSpecialEntry("0.00") // 20 атм
 	entryPress3.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if press3, err = strconv.ParseFloat(str, 64); err != nil {
@@ -701,9 +654,44 @@ func speed() fyne.CanvasObject {
 		widget.NewLabel("Канал 1:"), widget.NewLabel("Канал 2:"), widget.NewLabel("Канал 3:"),
 		entryPress1, entryPress2, entryPress3,
 	)
-	boxPress := container.NewVBox(textPress, box3)
+	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
 
-	boxAll := container.NewVBox(boxSpeed, boxMileage, widget.NewLabel("Параметры имитатора:"), addParam, boxPress, dummy)
+	// -------------------------extra box 3 ----------------------------
+
+	// обработка доп. параметры
+	sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // предустановка
+
+	entryDiameter := newNumericalEntry()
+	entryDiameter.Entry.Wrapping = fyne.TextWrapOff
+	entryDiameter.Entry.TextStyle.Monospace = true
+	entryDiameter.Entry.SetText(fmt.Sprintf("%d", gDevice.BandageDiameter1))
+	entryDiameter.Entry.OnChanged = func(str string) {
+		if val, err := strconv.Atoi(str); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (диаметр бандажа)\n")
+			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
+		} else {
+			gDevice.BandageDiameter1 = uint32(val)
+			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1))
+		}
+	}
+
+	entryNumberTeeth := newNumericalEntry()
+	entryNumberTeeth.Entry.Wrapping = fyne.TextWrapOff
+	entryNumberTeeth.Entry.TextStyle.Monospace = true
+	entryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gDevice.NumberTeeth))
+	entryNumberTeeth.Entry.OnChanged = func(str string) {
+		if val, err := strconv.Atoi(str); err != nil {
+			fmt.Printf("Ошибка перевода строки в число (количество зубьев)\n")
+			gStatusString.Set("Ошибка в поле ввода «Кол-во зубьев»")
+		} else {
+			gDevice.NumberTeeth = uint32(val)
+			sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1))
+		}
+	}
+	extbox := container.NewHBox(widget.NewLabel("Число зубьев:     "), entryNumberTeeth, widget.NewLabel("Диаметр (мм):  "), entryDiameter)
+	extParam := container.NewVBox(getTitle("Параметры имитатора:"), extbox)
+
+	boxAll := container.NewVBox(boxSpeed, boxMileage, boxPress, extParam, dummy)
 	box := container.NewHBox(dummy, boxAll, dummy)
 
 	return box
@@ -716,11 +704,7 @@ func speed() fyne.CanvasObject {
 // коды РЦ (Сигналы ИФ) +
 // Вых.БУ: 50В, 10В
 func outputSignals() fyne.CanvasObject {
-	// dummy := widget.NewLabel("")
 	var err error
-	var style fyne.TextStyle
-	style.Bold = true
-	labelCode := widget.NewLabelWithStyle("Коды РЦ:      ", fyne.TextAlignCenter, style)
 
 	code := []string{"Нет",
 		"КЖ 1.6",
@@ -734,7 +718,7 @@ func outputSignals() fyne.CanvasObject {
 		fds.SetIF(ipk.IFEnable)
 		switch s {
 		case "Нет":
-			err = fds.SetIF(ipk.IFDisable) // ?
+			err = fds.SetIF(ipk.IFDisable) // todo эти разобрать
 		case "КЖ 1.6":
 			err = fds.SetIF(ipk.IFRedYellow16)
 		case "Ж 1.6":
@@ -754,9 +738,8 @@ func outputSignals() fyne.CanvasObject {
 	})
 	radio.SetSelected("Нет")
 	// radio.Horizontal = true
-	boxCode := container.NewVBox(labelCode, radio)
+	boxCode := container.NewVBox(getTitle("Коды РЦ:      "), radio)
 
-	labelOut := widget.NewLabelWithStyle("Вых.БУ:", fyne.TextAlignCenter, style)
 	// 10V
 	checkG := widget.NewCheck("З", func(on bool) {
 		if on {
@@ -866,7 +849,7 @@ func outputSignals() fyne.CanvasObject {
 	})
 	boxOut10V := container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkPowerBU, checkKeyEPK)
 
-	boxOut := container.NewVBox(labelOut, boxOut10V, boxOut50V)
+	boxOut := container.NewVBox(getTitle("Вых.БУ:"), boxOut10V, boxOut50V)
 	box := container.NewHBox(boxOut, boxCode)
 
 	return box
@@ -874,10 +857,6 @@ func outputSignals() fyne.CanvasObject {
 
 // Уставки, входы БУС = считать
 func inputSignals() fyne.CanvasObject {
-
-	var style fyne.TextStyle
-	style.Bold = true
-	labelRelay := widget.NewLabelWithStyle("Реле превышения уставок:", fyne.TextAlignLeading, style)
 
 	check1 := widget.NewCheck("1", nil)
 	check20 := widget.NewCheck("20", nil)
@@ -963,7 +942,7 @@ func inputSignals() fyne.CanvasObject {
 		}
 	}()
 
-	return container.NewVBox(labelRelay, box)
+	return container.NewVBox(getTitle("Реле превышения уставок:"), box)
 }
 
 //---------------------------------------------------------------------------//
