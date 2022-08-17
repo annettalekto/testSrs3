@@ -86,7 +86,9 @@ func main() {
 	gStatusLabel.TextStyle = style
 	gStatusString = binding.NewString()
 	gStatusLabel.Bind(gStatusString)
-	gStatusString.Set(fmt.Sprintf("%s", err.Error()))
+	if err != nil {
+		gStatusString.Set(fmt.Sprintf("%s", err.Error()))
+	}
 
 	// Элементы
 	boxSpeed := speed()
@@ -401,21 +403,23 @@ func speed() fyne.CanvasObject {
 	entrySpeed2 := newSpecialEntry("0.0")
 
 	entrySpeed1.Entry.OnChanged = func(str string) {
-		if sep, _ := separately.Get(); !sep { // !не раздельное управление
-			speed2 = speed1                // тоже в переменную
-			entrySpeed2.Entry.SetText(str) // и в поле второго канала скорости
-		}
-	}
-	entrySpeed1.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 1)\n")
 			gStatusString.Set("Ошибка в поле ввода «Скорость 1»")
 			return
 		}
+		if sep, _ := separately.Get(); !sep { // !не раздельное управление
+			speed2 = speed1                // тоже в переменную
+			entrySpeed2.Entry.SetText(str) // и в поле второго канала скорости
+		}
+	}
+	entrySpeed1.Entry.OnSubmitted = func(str string) {
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gStatusString.Set("Ошибка установки скорости")
+		} else {
+			gStatusString.Set(" ")
 		}
 		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 		entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
@@ -423,21 +427,23 @@ func speed() fyne.CanvasObject {
 	}
 
 	entrySpeed2.Entry.OnChanged = func(str string) {
-		if sep, _ := separately.Get(); !sep {
-			speed1 = speed2
-			entrySpeed1.Entry.SetText(str)
-		}
-	}
-	entrySpeed2.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 2)\n")
 			gStatusString.Set("Ошибка в поле ввода «Скорость 2»")
 			return
 		}
+		if sep, _ := separately.Get(); !sep {
+			speed1 = speed2
+			entrySpeed1.Entry.SetText(str)
+		}
+	}
+	entrySpeed2.Entry.OnSubmitted = func(str string) {
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gStatusString.Set("Ошибка установки скорости")
+		} else {
+			gStatusString.Set(" ")
 		}
 		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 		entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
@@ -449,21 +455,23 @@ func speed() fyne.CanvasObject {
 	entryAccel2 := newSpecialEntry("0.00")
 
 	entryAccel1.Entry.OnChanged = func(str string) {
-		if sep, _ := separately.Get(); !sep {
-			accel2 = accel1
-			entryAccel2.Entry.SetText(str)
-		}
-	}
-	entryAccel1.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
 			gStatusString.Set("Ошибка в поле ввода «Ускорение 1»")
 			return
 		}
-		if err = sp.SetAcceleration(accel1, accel2); err != nil {
+		if sep, _ := separately.Get(); !sep {
+			accel2 = accel1
+			entryAccel2.Entry.SetText(str)
+		}
+	}
+	entryAccel1.Entry.OnSubmitted = func(str string) {
+		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
 			gStatusString.Set("Ошибка установки ускорения")
+		} else {
+			gStatusString.Set(" ")
 		}
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
 		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
@@ -471,21 +479,24 @@ func speed() fyne.CanvasObject {
 	}
 
 	entryAccel2.Entry.OnChanged = func(str string) {
-		if sep, _ := separately.Get(); !sep {
-			accel1 = accel2
-			entryAccel1.Entry.SetText(str)
-		}
-	}
-	entryAccel2.Entry.OnSubmitted = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 2)\n")
 			gStatusString.Set("Ошибка в поле ввода «Ускорение 2»")
 			return
 		}
-		if err = sp.SetAcceleration(accel1, accel2); err != nil {
+		if sep, _ := separately.Get(); !sep {
+			accel1 = accel2
+			entryAccel1.Entry.SetText(str)
+		}
+	}
+	entryAccel2.Entry.OnSubmitted = func(str string) {
+
+		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
 			gStatusString.Set("Ошибка установки ускорения")
+		} else {
+			gStatusString.Set(" ")
 		}
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
 		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
@@ -613,6 +624,8 @@ func speed() fyne.CanvasObject {
 		if err = channel1.Set(press1); err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
 			gStatusString.Set("Ошибка установки давления 1")
+		} else {
+			gStatusString.Set(" ")
 		}
 		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
 		entryPress1.Entry.SetText(fmt.Sprintf("%.2f", press1))
@@ -629,6 +642,8 @@ func speed() fyne.CanvasObject {
 		if err = channel2.Set(press2); err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
 			gStatusString.Set("Ошибка установки давления 2")
+		} else {
+			gStatusString.Set(" ")
 		}
 		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
 		entryPress2.Entry.SetText(fmt.Sprintf("%.2f", press2))
@@ -644,6 +659,8 @@ func speed() fyne.CanvasObject {
 		}
 		if err = channel3.Set(press3); err != nil {
 			fmt.Printf("Ошибка установки давления 3\n")
+		} else {
+			gStatusString.Set(" ")
 		}
 		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
 		entryPress3.Entry.SetText(fmt.Sprintf("%.2f", press3))
