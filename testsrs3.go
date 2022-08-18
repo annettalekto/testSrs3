@@ -378,11 +378,12 @@ func getCAN() {
 // 						ИНТЕРФЕЙС: ФАС, ФЧС
 //---------------------------------------------------------------------------//
 
-func newSpecialEntry(placeHolder string) (e *numericalEntry) {
+func newSpecialEntry(initValue string) (e *numericalEntry) {
 	e = newNumericalEntry()
 	e.Entry.Wrapping = fyne.TextTruncate
 	e.Entry.TextStyle.Monospace = true
-	e.Entry.SetPlaceHolder(placeHolder)
+	// e.Entry.SetPlaceHolder(placeHolder)
+	e.Entry.SetText(initValue)
 	return e
 }
 
@@ -414,7 +415,7 @@ func speed() fyne.CanvasObject {
 			entrySpeed2.Entry.SetText(str) // и в поле второго канала скорости
 		}
 	}
-	entrySpeed1.Entry.OnSubmitted = func(str string) {
+	entrySpeed1.Entry.OnSubmitted = func(str string) { // todo если пусто устанавливать ноль?
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gStatusString.Set("Ошибка установки скорости")
@@ -611,16 +612,24 @@ func speed() fyne.CanvasObject {
 	// ------------------------- box 3 ----------------------------
 
 	var press1, press2, press3 float64
+	// границы
+	limit1, limit2, limit3 := 10., gDevice.PressureLimit, 10.
 
 	// обработка давления
-	entryPress1 := newSpecialEntry("0.00") // todo ограничить 10 атм - добавить метод проверяющий max
-	entryPress1.Entry.OnSubmitted = func(str string) {
+	entryPress1 := newSpecialEntry("0.0")
+	entryPress1.Entry.OnChanged = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
-		if press1, err = strconv.ParseFloat(str, 64); err != nil {
+		press1, err = strconv.ParseFloat(str, 64)
+		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 1)\n")
 			gStatusString.Set("Ошибка в поле ввода «Давление 1»")
 			return
 		}
+		if press1 > limit1 {
+			gStatusString.Set(fmt.Sprintf("Давление 1: максимум %.0f кгс/см2", limit1))
+		}
+	}
+	entryPress1.Entry.OnSubmitted = func(str string) {
 		if err = channel1.Set(press1); err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
 			gStatusString.Set("Ошибка установки давления 1")
@@ -628,17 +637,23 @@ func speed() fyne.CanvasObject {
 			gStatusString.Set(" ")
 		}
 		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
-		entryPress1.Entry.SetText(fmt.Sprintf("%.2f", press1))
+		entryPress1.Entry.SetText(fmt.Sprintf("%.1f", press1))
 	}
 
-	entryPress2 := newSpecialEntry("0.00") // из УПП ~ 16 атм
-	entryPress2.Entry.OnSubmitted = func(str string) {
+	entryPress2 := newSpecialEntry("0.0")
+	entryPress2.Entry.OnChanged = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
-		if press2, err = strconv.ParseFloat(str, 64); err != nil {
+		press2, err = strconv.ParseFloat(str, 64)
+		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 2)\n")
 			gStatusString.Set("Ошибка в поле ввода «Давление 2»")
 			return
 		}
+		if press2 > limit2 {
+			gStatusString.Set(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2))
+		}
+	}
+	entryPress2.Entry.OnSubmitted = func(str string) {
 		if err = channel2.Set(press2); err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
 			gStatusString.Set("Ошибка установки давления 2")
@@ -646,24 +661,30 @@ func speed() fyne.CanvasObject {
 			gStatusString.Set(" ")
 		}
 		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
-		entryPress2.Entry.SetText(fmt.Sprintf("%.2f", press2))
+		entryPress2.Entry.SetText(fmt.Sprintf("%.1f", press2))
 	}
 
-	entryPress3 := newSpecialEntry("0.00") // 20 атм
-	entryPress3.Entry.OnSubmitted = func(str string) {
+	entryPress3 := newSpecialEntry("0.0")
+	entryPress3.Entry.OnChanged = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
-		if press3, err = strconv.ParseFloat(str, 64); err != nil {
+		press3, err = strconv.ParseFloat(str, 64)
+		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 3)\n")
 			gStatusString.Set("Ошибка в поле ввода «Давление 3»")
 			return
 		}
+		if press3 > limit3 {
+			gStatusString.Set(fmt.Sprintf("Давление 3: максимум %.0f кгс/см2", limit3))
+		}
+	}
+	entryPress3.Entry.OnSubmitted = func(str string) {
 		if err = channel3.Set(press3); err != nil {
 			fmt.Printf("Ошибка установки давления 3\n")
 		} else {
 			gStatusString.Set(" ")
 		}
 		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
-		entryPress3.Entry.SetText(fmt.Sprintf("%.2f", press3))
+		entryPress3.Entry.SetText(fmt.Sprintf("%.1f", press3))
 	}
 
 	box3 := container.NewGridWithColumns(
