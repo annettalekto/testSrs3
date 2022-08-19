@@ -400,8 +400,8 @@ func speed() fyne.CanvasObject {
 	dummy := widget.NewLabel("")
 
 	// обработка скорости
-	entrySpeed1 := newSpecialEntry("0.0")
-	entrySpeed2 := newSpecialEntry("0.0")
+	entrySpeed1 := newSpecialEntry("0")
+	entrySpeed2 := newSpecialEntry("0")
 
 	entrySpeed1.Entry.OnChanged = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
@@ -422,8 +422,14 @@ func speed() fyne.CanvasObject {
 		} else {
 			gStatusString.Set(" ")
 		}
-		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
-		entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+
+		if strings.Contains(str, ".") {
+			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
+			entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+		} else {
+			entrySpeed1.Entry.SetText(fmt.Sprintf("%.0f", speed1))
+			entrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
+		}
 		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 	}
 
@@ -446,8 +452,13 @@ func speed() fyne.CanvasObject {
 		} else {
 			gStatusString.Set(" ")
 		}
-		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
-		entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+		if strings.Contains(str, ".") {
+			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
+			entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+		} else {
+			entrySpeed1.Entry.SetText(fmt.Sprintf("%.0f", speed1))
+			entrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
+		}
 		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 	}
 
@@ -459,6 +470,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
+			// entryMileage.Entry.SetText("0")
 			gStatusString.Set("Ошибка в поле ввода «Ускорение 1»")
 			return
 		}
@@ -555,39 +567,55 @@ func speed() fyne.CanvasObject {
 
 	// ------------------------- box 2 ----------------------------
 
-	startDistanceCheck := false
-	distance := 0
-	startDistance := uint32(0)
+	distanceCheck := false
+	// var distanceTime time.Time
+	startDistance, distance := uint32(0), uint32(0)
+	currentDistance := binding.NewString()
+	currentDistance.Set("0")
 
 	// обработка пути
-	entryMileage := newSpecialEntry("20000")
+	entryMileage := newSpecialEntry("0") //20000
 	entryMileage.Entry.OnChanged = func(str string) {
-		distance, err = strconv.Atoi(str)
+		// todo что делать с точкой
+		d, err := strconv.Atoi(str)
 		if err != nil {
-			// distance = 0
-			// entryMileage.Entry.SetText("0")
+			distance = 0
 			fmt.Printf("Ошибка перевода строки в число (путь)\n")
-		}
-	}
-	buttonMileage := widget.NewButton("Пуск", func() { // todo стоп
-		if 0 == distance {
+			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
 			return
 		}
-		startDistanceCheck = true
-		startDistance, _, err = sp.GetWay() // todo по двум каналам!
-		if err != nil {
-			fmt.Printf("Ошибка: не получено значение пути с ИПК\n")
+		distance = uint32(d)
+	}
+	// entryMileage.Entry.OnSubmitted = func(str string) {
+	// todo дублировать?
+	// }
+	buttonMileage := widget.NewButton("Пуск", func() {
+		// todo кнопка стоп?
+		if 0 == distance {
+			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
+			return
 		}
-
-		err = sp.SetLimitWay(uint32(distance))
+		err = sp.SetLimitWay(distance)
 		if err != nil {
 			fmt.Printf("Ошибка установки пути\n")
+			gStatusString.Set("Ошибка установки пути")
+			return
 		}
-		// sp.SetMotion(ipk.MotionBackwards)
-		// sp.SetSpeed(fScaleLimit, fScaleLimit) // скорость должны установить сами в поле ввода скорости
+		time.Sleep(1 * time.Second) // не успевает сбросится
+		startDistance, _, err = sp.GetWay()
+		if err != nil {
+			fmt.Printf("Ошибка: не получено значение пути с ИПК\n")
+			gStatusString.Set("Ошибка: не получено значение пути с ИПК")
+			return
+		}
+		gStatusString.Set(" ")
 		fmt.Printf("Путь: %d м (%v)\n", distance, err)
+		distanceCheck = true
+		entryMileage.Entry.SetText(fmt.Sprintf("%d", distance))
+		// скорость должны установить сами в поле ввода скорости
 	})
 	labelMileage := widget.NewLabel("0")
+	labelMileage.Bind(currentDistance)
 
 	box2 := container.NewGridWithColumns(
 		3,
@@ -598,12 +626,21 @@ func speed() fyne.CanvasObject {
 
 	go func() {
 		for {
-			if startDistanceCheck {
+			if distanceCheck {
 				m, _, err := sp.GetWay()
 				if err != nil {
 					fmt.Printf("Не получено значение пути с ИПК\n")
+					gStatusString.Set("Ошибка: не получено значение пути с ИПК")
+					break
 				}
-				labelMileage.SetText(fmt.Sprintf("%d", startDistance-m))
+				fmt.Println(m)
+				m -= startDistance
+				currentDistance.Set(fmt.Sprintf("%d", m))
+
+				if m >= distance {
+					distanceCheck = false
+					fmt.Println("Дистанция пройдена")
+				}
 			}
 			time.Sleep(time.Second)
 		}
@@ -1018,7 +1055,7 @@ func top() fyne.CanvasObject {
 
 //---------------------------------------------------------------------------//
 
-// todo вот после обновления УПП нужно еще и на форме значения обновить? 42 1350
+// todo вот после обновления УПП нужно еще и на форме значения обновить? 42 1350 и уставки скоростей
 
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
