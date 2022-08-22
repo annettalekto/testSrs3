@@ -419,10 +419,9 @@ func speed() fyne.CanvasObject {
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gStatusString.Set("Ошибка установки скорости")
-		} else {
-			gStatusString.Set(" ")
+			return
 		}
-
+		gStatusString.Set(" ")
 		if strings.Contains(str, ".") {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 			entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
@@ -583,7 +582,10 @@ func speed() fyne.CanvasObject {
 	// обработка пути
 	entryMileage := newSpecialEntry("0") //20000
 	entryMileage.Entry.OnChanged = func(str string) {
-		// todo что делать с точкой
+		if strings.Contains(str, ".") {
+			gStatusString.Set("Ошибка в поле ввода «Дистанция»: введите целое число")
+			return
+		}
 		d, err := strconv.Atoi(str)
 		if err != nil {
 			setDistance = 0
@@ -594,7 +596,7 @@ func speed() fyne.CanvasObject {
 		setDistance = uint32(d)
 	}
 	// entryMileage.Entry.OnSubmitted = func(str string) {
-	// todo дублировать?
+	// todo дублировать установку?
 	// }
 	buttonMileage := widget.NewButton("Пуск", func() {
 		// todo кнопка стоп?
@@ -602,15 +604,13 @@ func speed() fyne.CanvasObject {
 			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
 			return
 		}
-		err = sp.SetLimitWay(setDistance)
-		if err != nil {
+		if err = sp.SetLimitWay(setDistance); err != nil {
 			fmt.Printf("Ошибка установки пути\n")
 			gStatusString.Set("Ошибка установки пути")
 			return
 		}
-		time.Sleep(1 * time.Second) // не успевает сбросится
-		startDistance, _, err = sp.GetWay()
-		if err != nil {
+		time.Sleep(1 * time.Second) // не успевает сбросится счетчик
+		if startDistance, _, err = sp.GetWay(); err != nil {
 			fmt.Printf("Ошибка: не получено значение пути с ИПК\n")
 			gStatusString.Set("Ошибка: не получено значение пути с ИПК")
 			return
@@ -639,6 +639,8 @@ func speed() fyne.CanvasObject {
 					fmt.Printf("Не получено значение пути с ИПК\n")
 					gStatusString.Set("Ошибка: не получено значение пути с ИПК")
 					break
+				} else {
+					gStatusString.Set(" ")
 				}
 				fmt.Println(m)
 				m -= startDistance
@@ -656,15 +658,13 @@ func speed() fyne.CanvasObject {
 	// ------------------------- box 3 ----------------------------
 
 	var press1, press2, press3 float64
-	// границы
 	limit1, limit2, limit3 := 10., gDevice.PressureLimit, 10.
 
 	// обработка давления
 	entryPress1 := newSpecialEntry("0.0")
 	entryPress1.Entry.OnChanged = func(str string) {
 		str = strings.ReplaceAll(str, ",", ".")
-		press1, err = strconv.ParseFloat(str, 64)
-		if err != nil {
+		if press1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 1)\n")
 			gStatusString.Set("Ошибка в поле ввода «Давление 1»")
 			return
@@ -677,9 +677,9 @@ func speed() fyne.CanvasObject {
 		if err = channel1.Set(press1); err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
 			gStatusString.Set("Ошибка установки давления 1")
-		} else {
-			gStatusString.Set(" ")
+			return
 		}
+		gStatusString.Set(" ")
 		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
 		entryPress1.Entry.SetText(fmt.Sprintf("%.1f", press1))
 	}
@@ -701,9 +701,9 @@ func speed() fyne.CanvasObject {
 		if err = channel2.Set(press2); err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
 			gStatusString.Set("Ошибка установки давления 2")
-		} else {
-			gStatusString.Set(" ")
+			return
 		}
+		gStatusString.Set(" ")
 		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
 		entryPress2.Entry.SetText(fmt.Sprintf("%.1f", press2))
 	}
@@ -724,9 +724,9 @@ func speed() fyne.CanvasObject {
 	entryPress3.Entry.OnSubmitted = func(str string) {
 		if err = channel3.Set(press3); err != nil {
 			fmt.Printf("Ошибка установки давления 3\n")
-		} else {
-			gStatusString.Set(" ")
+			return
 		}
+		gStatusString.Set(" ")
 		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
 		entryPress3.Entry.SetText(fmt.Sprintf("%.1f", press3))
 	}
@@ -756,7 +756,7 @@ func speed() fyne.CanvasObject {
 		val, err := strconv.Atoi(str)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (диаметр бандажа)\n")
-			gStatusString.Set("Ошибка в поле ввода «»диаметр бандажа")
+			gStatusString.Set("Ошибка в поле ввода «Диаметр»")
 			return
 		}
 		gDevice.BandageDiameter1 = uint32(val)
@@ -780,14 +780,13 @@ func speed() fyne.CanvasObject {
 		val, err := strconv.Atoi(str)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (количество зубьев)\n")
-			gStatusString.Set("Ошибка в поле ввода «Кол-во зубьев»")
+			gStatusString.Set("Ошибка в поле ввода «Число зубьев»")
 			return
 		}
 		gDevice.NumberTeeth = uint32(val)
 		sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.NumberTeeth))
 		entryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gDevice.NumberTeeth))
 		gStatusString.Set(" ")
-
 	}
 	extbox := container.NewHBox(widget.NewLabel("Число зубьев:     "), entryNumberTeeth, widget.NewLabel("Диаметр (мм):  "), entryDiameter)
 	extParam := container.NewVBox(getTitle("Параметры имитатора:"), extbox)
