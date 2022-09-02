@@ -12,13 +12,13 @@ import (
 
 // DataUPP upp
 type DataUPP struct {
-	// Number int
+	Mod   int
 	Name  string
 	Value string
 	Hint  string
 }
 
-type descriptionType struct {
+type descriptionType struct { // todo имя
 	NameBU           string
 	Power            bool
 	BandageDiameter1 uint32
@@ -31,7 +31,7 @@ type descriptionType struct {
 var gUPP = make(map[int]DataUPP) // все признаки
 var gDevice descriptionType
 
-func getTomlUPP() {
+func readUPPfromTOML() {
 	var err error
 	var data struct {
 		UPP struct {
@@ -48,6 +48,8 @@ func getTomlUPP() {
 	for i := range data.UPP.Name {
 		var upp DataUPP
 		number, _ := strconv.Atoi(i)
+
+		upp.Mod = number
 		upp.Name = data.UPP.Name[i]
 		upp.Value = data.UPP.Value[i]
 		upp.Hint = data.UPP.Hint[i]
@@ -88,7 +90,7 @@ func getTomlUPP() {
 }
 
 // записать текущие УПП в файл
-func writeTomlUPP() {
+func writeUPPtoTOML() {
 	f, err := os.Create("upp.toml")
 	if err != nil {
 		fmt.Println(err)
@@ -131,10 +133,15 @@ func getErrorDescription(sCode string) string {
 	return data.Errors.Description[sCode]
 }
 
-func checkValueUPP(value, hint string) (result bool) {
-	fvalue, err := strconv.ParseFloat(value, 64)
+func (d DataUPP) checkValueUPP() (err error) {
+	var ok bool
+	hint := d.Hint
+
+	fvalue, err := strconv.ParseFloat(d.Value, 64)
 	if err != nil {
 		fmt.Printf("Ошибка конвертации значения\n")
+		err = fmt.Errorf("Введено неверное значение параметра %d «%s» = %s", d.Mod, d.Name, d.Value)
+		return
 	}
 
 	// 16 = "Диапазон значений [0 - 150]"
@@ -146,16 +153,14 @@ func checkValueUPP(value, hint string) (result bool) {
 		smin, smax, _ := strings.Cut(str, "-")
 		min, err := strconv.ParseFloat(smin, 64)
 		if err != nil {
-			fmt.Printf("Ошибка получения значения из подсказки\n")
+			return fmt.Errorf("Ошибка получения значения из подсказки (файл errors.toml)")
 		}
 		max, err := strconv.ParseFloat(smax, 64)
 		if err != nil {
-			fmt.Printf("Ошибка получения значения из подсказки\n")
+			return fmt.Errorf("Ошибка получения значения из подсказки (файл errors.toml)")
 		}
 		if (fvalue >= min) && (fvalue <= max) {
-			result = true
-		} else {
-			result = false
+			ok = true
 		}
 	} else {
 		// 17 = "Возможные значения [1, 2, 3]"
@@ -167,29 +172,40 @@ func checkValueUPP(value, hint string) (result bool) {
 		for _, val := range sl {
 			fv, err := strconv.ParseFloat(val, 64)
 			if err != nil {
-				fmt.Printf("Ошибка конвертации значения\n")
+				return fmt.Errorf("Ошибка получения значения из подсказки (файл errors.toml)")
 			}
 			if fv == fvalue {
-				result = true
+				ok = true
 				break
 			}
 		}
+	}
+	if !ok {
+		err = fmt.Errorf("Введено неверное значение параметра: %d «%s»", d.Mod, d.Name)
 	}
 
 	return
 }
 
-func writeUPPtoBU() (error, int) {
-	var err error
-	for number, upp := range gUPP {
-		if number == 10 {
-			err = setFloatVal(number, upp.Value)
-		} else {
-			err = setIntVal(number, upp.Value)
-		}
-		if err != nil {
-			return err, number
+func (d DataUPP) writeValue() (err error) {
+
+	if d.Mod == 10 {
+		err = setFloatVal(d.Mod, d.Value)
+	} else {
+		err = setIntVal(d.Mod, d.Value)
+	}
+	if err != nil {
+		err = fmt.Errorf("Ошибка установки значения: %d «%s» = %s", d.Mod, d.Name, d.Value)
+	}
+	return
+}
+
+// только в режиме обслуживания
+func writeUPPtoBU() (err error) {
+	for _, upp := range gUPP {
+		if err = upp.writeValue(); err != nil {
+			return
 		}
 	}
-	return nil, 0
+	return
 }

@@ -33,7 +33,7 @@ func main() {
 	var err error
 
 	// Инит
-	getTomlUPP()
+	readUPPfromTOML()
 	err = initIPK()
 	if err != nil {
 		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
@@ -1051,7 +1051,7 @@ func inputSignals() fyne.CanvasObject {
 
 func top() fyne.CanvasObject {
 
-	deviceChoice := []string{"БУ-3П", "БУ-3ПА", "БУ-3ПВ", "БУ-4"}
+	deviceChoice := []string{"БУ-3П", "БУ-3ПА", "БУ-3ПВ", "БУ-4"} // +kpd
 	var selectDevice *widget.Select
 	selectDevice = widget.NewSelect(deviceChoice, func(s string) {
 		gDevice.NameBU = s
@@ -1080,14 +1080,13 @@ func top() fyne.CanvasObject {
 
 //---------------------------------------------------------------------------//
 
-// todo вот после обновления УПП нужно еще и на форме значения обновить? 42 1350 и уставки скоростей
-
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
 	statusLabel := widget.NewLabel(" ")
 
 	// переход в режим обслуживания
 	// defer обратненько
+	// todo вот после обновления УПП нужно еще и на форме значения обновить? 42 1350 и уставки скоростей
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -1096,7 +1095,8 @@ func showFormUPP() {
 
 	b := container.NewVBox()
 
-	getTomlUPP()
+	// при старте показать сохраненные значения УПП (те что были записаны в прошлый раз)
+	readUPPfromTOML()
 	var temp []int
 	for n := range gUPP {
 		temp = append(temp, n)
@@ -1113,6 +1113,8 @@ func showFormUPP() {
 		paramEntry[number].TextStyle.Monospace = true
 		paramEntry[number].SetText(upp.Value)
 		paramEntry[number].OnChanged = func(str string) {
+			str = strings.ReplaceAll(str, ",", ".")
+			paramEntry[upp.Mod].SetText(str) // нельзя number!
 			statusLabel.SetText(upp.Hint)
 		}
 
@@ -1122,25 +1124,32 @@ func showFormUPP() {
 	boxScrollUPP := container.NewVScroll(b)                                                             // + крутилку
 	boxScrollLayoutUPP := container.New(layout.NewGridWrapLayout(fyne.NewSize(770, 550)), boxScrollUPP) // чтобы не расползались, нужно место для кнопок
 
-	readButton := widget.NewButton("УПП БУ", nil)
+	// считать УПП записанные в БУ
+	readButton := widget.NewButton("УПП БУ", func() {
+		readUPPfromBU()
+		for number, upp := range gUPP {
+			paramEntry[number].SetText(upp.Value)
+		}
+	})
+
+	// записать то что на форме в БУ
 	writeButton := widget.NewButton("Записать", func() {
-		// проверить введенные данные
-		for number := range gUPP {
-			if !checkValueUPP(paramEntry[number].Text, gUPP[number].Hint) {
-				statusLabel.SetText(fmt.Sprintf("Неверное значение параметра: «%s»", gUPP[number].Name))
-				return
+		// проверить все введенные данные
+		for _, upp := range gUPP {
+			if err := upp.checkValueUPP(); err != nil {
+				statusLabel.SetText(err.Error())
 			}
 		}
-		// записать все в gUPP
+		// записать всё в gUPP
 		for number, val := range gUPP {
-			fmt.Println(val.Value)
 			val.Value = paramEntry[number].Text
 			gUPP[number] = val
 		}
-		if err, number := writeUPPtoBU(); err != nil {
-			statusLabel.SetText(fmt.Sprintf("Ошибка установки значения: «%s»", gUPP[number].Name))
+		// записать полученное в БУ
+		if err := writeUPPtoBU(); err != nil {
+			statusLabel.SetText(err.Error())
 		} else {
-			writeTomlUPP() //переименовать todo
+			writeUPPtoTOML()
 			statusLabel.SetText("УПП записаны успешно")
 		}
 	})

@@ -1,4 +1,7 @@
 *.exe
+*.txt
+
 #*.toml
 upp.toml
+
 toml/

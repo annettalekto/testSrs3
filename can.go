@@ -11,6 +11,9 @@ import (
 )
 
 const (
+	idBu3pSysInfo   = 0x5C0
+	idBu3pQueryInfo = 0x5C1
+
 	idTimeBU     = 0xC7
 	idSpeed1     = 0x5E5
 	idSpeed2     = 0x5E6
@@ -60,7 +63,38 @@ func setCurrentTimeBU() (err error) {
 	return
 }
 
-// по сути для одного признака 10 Дискретность регистрации топлива для БР(0.5, 1.0, 2.0)
+// запрос x5C1 RTR=0 len=1 номер УПП
+// ответ  x5C0 len=5 номер УПП + 4 байта данные мл.байтом вперед
+// и в режиме работы и обслуживания
+
+// прочитать УПП из БУ
+func readUPPfromBU() (err error) {
+	const bu3pSysInfo = 0x5C0
+	const bu3pQueryInfo = 0x5C1
+	var msg candev.Message
+
+	for number, value := range gUPP {
+		msg.ID = bu3pQueryInfo
+		msg.Len = 1
+		msg.Data[0] = byte(number)
+
+		can25.Send(msg)
+		msg, err = can25.GetMsgByID(bu3pSysInfo, 2*time.Second)
+		if err == nil && msg.Data[0] == byte(number) {
+			v := binary.LittleEndian.Uint32(msg.Data[1:])
+			if number == 10 {
+				value.Value = fmt.Sprintf("%.1f", float32(v)/10.)
+			} else {
+				value.Value = fmt.Sprintf("%d", v)
+			}
+		}
+		gUPP[number] = value
+	}
+
+	return
+}
+
+// по сути для одного признака 10 Дискретность регистрации топлива для БР (0.5, 1.0, 2.0)
 func setFloatVal(mod int, s string) (err error) {
 	var f float64
 	if f, err = strconv.ParseFloat(s, 64); err != nil {
@@ -72,6 +106,11 @@ func setFloatVal(mod int, s string) (err error) {
 	sendMsg.ID = idSetUPP
 	sendMsg.Len = 5
 
+	// ¯\_(ツ)_/¯ пересылать так:
+	// 05 00 00 00 = 0.5
+	// 00 00 01 00 = 1.0
+	// 00 00 02 00 = 2.0
+
 	d1 := int(f)                      // целая
 	d2 := int((f - float64(d1)) * 10) // дробная часть
 
@@ -82,7 +121,7 @@ func setFloatVal(mod int, s string) (err error) {
 	sendMsg.Data[4] = byte((d1 >> 8) & 0xFF)
 	can25.Send(sendMsg)
 
-	receiveMsg, err = can25.GetMsgByID(0x5C0, 2*time.Second)
+	receiveMsg, err = can25.GetMsgByID(idBu3pSysInfo, 2*time.Second)
 	if err == nil {
 		if sendMsg.Data != receiveMsg.Data {
 			err = fmt.Errorf("setFloatVal(): значение признака не установлено: %X %X %X %X", sendMsg.Data[1], sendMsg.Data[2], sendMsg.Data[3], sendMsg.Data[4])
@@ -95,8 +134,8 @@ func setFloatVal(mod int, s string) (err error) {
 // установить УПП int по CAN
 // только в режиме обслуживания блока
 func setIntVal(mod int, s string) (err error) {
-	var val int
-	if val, err = strconv.Atoi(s); err != nil {
+	var value int
+	if value, err = strconv.Atoi(s); err != nil {
 		err = errors.New("setIntVal(): значение \"" + s + "\" не переведено в int")
 		return
 	}
@@ -106,16 +145,10 @@ func setIntVal(mod int, s string) (err error) {
 	sendMsg.Len = 5
 
 	sendMsg.Data[0] = byte(mod)
-	sendMsg.Data[1] = byte(val & 0xFF)
-	sendMsg.Data[2] = byte((val >> 8) & 0xFF)
-	sendMsg.Data[3] = byte((val >> 16) & 0xFF)
-	sendMsg.Data[4] = byte((val >> 24) & 0xFF)
-	can25.Send(sendMsg) // установить значение
+	binary.LittleEndian.PutUint32(sendMsg.Data[1:], uint32(value))
+	can25.Send(sendMsg)
 
-	// поймать ответ, должен быть таким же как отправленное сообщение
-	// это же сообщение можно запросить через 0x5C1, rtr = 1
-	receiveMsg, err = can25.GetMsgByID(0x5C0, 2*time.Second)
-	if err == nil {
+	if receiveMsg, err = can25.GetMsgByID(idBu3pSysInfo, 2*time.Second); err == nil {
 		if sendMsg.Data != receiveMsg.Data {
 			err = fmt.Errorf("setIntVal(): значение признака не установлено: %d", (int(sendMsg.Data[2])<<8 | int(sendMsg.Data[1])))
 		}
