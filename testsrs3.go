@@ -33,7 +33,7 @@ func main() {
 	var err error
 
 	// Инит
-	readUPPfromTOML()
+	readUPPfromTOML() // заменить на чтение из блока
 	err = initIPK()
 	if err != nil {
 		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
@@ -906,6 +906,7 @@ func outputSignals() fyne.CanvasObject {
 		fmt.Printf("Двоичные выходы 50В: 7=%v Тяга (%v)\n", on, err)
 	})
 	boxOut50V := container.NewVBox(checkG, checkY, checkRY, checkR, checkW, checkEPK1, checkIF, checkTracktion)
+
 	// 50V
 	checkLP := widget.NewCheck("ЛП", func(on bool) {
 		if on {
@@ -960,7 +961,7 @@ func inputSignals() fyne.CanvasObject {
 
 	check1 := widget.NewCheck("1", nil)
 	check20 := widget.NewCheck("20", nil)
-	checkY := widget.NewCheck(gUPP[14].Value, nil)  // 80 V(ж)
+	checkY := widget.NewCheck(gUPP[14].Value, nil)  // 80 V(ж) todo подписи через label binding.String
 	checkRY := widget.NewCheck(gUPP[15].Value, nil) // 60 V(кж)
 	checkU := widget.NewCheck(gUPP[16].Value, nil)  // 30 V(упр)
 	boxRelay := container.NewHBox(check1, check20, checkY, checkRY, checkU)
@@ -1078,8 +1079,6 @@ func top() fyne.CanvasObject {
 	return box // container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
 }
 
-//---------------------------------------------------------------------------//
-
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
 	statusLabel := widget.NewLabel(" ")
@@ -1152,6 +1151,8 @@ func showFormUPP() {
 			writeUPPtoTOML()
 			statusLabel.SetText("УПП записаны успешно")
 		}
+		// отобразить на экране
+		// todo
 	})
 
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)

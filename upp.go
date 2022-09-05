@@ -28,8 +28,8 @@ type descriptionType struct { // todo имя
 	ScaleLimit       uint32
 }
 
-var gUPP = make(map[int]DataUPP) // все признаки
-var gDevice descriptionType
+var gUPP = make(map[int]DataUPP) // все признаки todo все глобальные?
+var gDevice descriptionType      // gBU.Name
 
 func readUPPfromTOML() {
 	var err error

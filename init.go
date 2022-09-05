@@ -4,6 +4,9 @@ import (
 	"errors"
 	"time"
 
+	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/widget"
+
 	"github.com/amdf/ipk"
 	"github.com/amdf/ixxatvci3/candev"
 )
@@ -19,6 +22,39 @@ var fcs *ipk.FreqDevice
 var channel1 ipk.PressureOutput // sensorTM Переменная для задания давления ТM в кгс/см² (канал 1)
 var channel2 ipk.PressureOutput // sensorTC Переменная для задания давления ТЦ в кгс/см² (канал 2)
 var channel3 ipk.PressureOutput // sensorGR Переменная для задания давления GR в кгс/см²
+
+// todo init before:
+/*
+	получить значения с БУ по CAN, проинициализировать ИПК, глобальные структуры
+	initForm вывести на форму
+	после установки УПП вызвать InitForm для изменения элементов
+*/
+
+// DescriptionBU lsdk;
+type DescriptionBU struct {
+	NameBU string
+	Power  bool //gBU.Power
+	// BandageDiameter1 uint32 не дублиролвать gUPP
+	// BandageDiameter2 uint32
+	// PressureLimit    float64
+	// NumberTeeth      uint32
+	// ScaleLimit       uint32
+}
+
+// DescriptionForm sdagd
+type DescriptionForm struct {
+	Status binding.String // gForm.Status
+	// реле
+	RelayY *widget.Check
+	// checkY := widget.NewCheck(gUPP[14].Value, nil)  // 80 V(ж)
+	// checkRY := widget.NewCheck(gUPP[15].Value, nil) // 60 V(кж)
+	// checkU
+
+	// бандаж и зубы
+
+	// бокс с сигналами 3ПВ
+
+}
 
 func initIPK() (err error) {
 
