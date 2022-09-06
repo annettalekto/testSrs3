@@ -24,23 +24,14 @@ import (
 	"github.com/amdf/ixxatvci3/candev"
 )
 
-var gVersion, gYear, gProgramName string
-var gStatusString binding.String
+var gForm DescriptionForm
 
 func main() {
-	gVersion, gYear = "1.0.0", "2022 г." // todo править при изменениях
-	gProgramName = "Электронная имитация параметров"
-	var err error
+	gForm.Version, gForm.Year = "1.0.0", "2022 г."
+	gForm.ProgramName = "Электронная имитация параметров"
 
 	// Инит
-	readUPPfromTOML() // заменить на чтение из блока
-	err = initIPK()
-	if err != nil {
-		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
-		err = errors.New("Ошибка инициализации ИПК")
-	}
-
-	err = can25.Init(0x1F, 0x16)
+	err := can25.Init(0x1F, 0x16)
 	if err != nil {
 		fmt.Printf("Ошибка инициализации CAN: %v\n", err)
 		err = errors.New("Ошибка инициализации CAN")
@@ -48,9 +39,17 @@ func main() {
 	can25.Run()
 	defer can25.Stop()
 
+	errUPP := initData()
+
+	err = initIPK()
+	if err != nil {
+		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
+		err = errors.New("Ошибка инициализации ИПК")
+	}
+
 	// Форма
 	a := app.New()
-	w := a.NewWindow(gProgramName)
+	w := a.NewWindow(gForm.ProgramName)
 	// w.Resize(fyne.NewSize(800, 600))
 	w.CenterOnScreen()
 	w.SetMaster()
@@ -84,10 +83,12 @@ func main() {
 	style.Monospace = true
 	gStatusLabel := widget.NewLabel("Статус")
 	gStatusLabel.TextStyle = style
-	gStatusString = binding.NewString()
-	gStatusLabel.Bind(gStatusString)
-	if err != nil {
-		gStatusString.Set(fmt.Sprintf("%s", err.Error()))
+	gForm.Status = binding.NewString()
+	gStatusLabel.Bind(gForm.Status)
+	if errUPP != nil {
+		gForm.Status.Set(fmt.Sprintf("%s", errUPP.Error()))
+	} else if err != nil {
+		gForm.Status.Set(fmt.Sprintf("%s", err.Error()))
 	}
 
 	// Элементы
@@ -109,6 +110,10 @@ func main() {
 	w.SetContent(box)
 	w.ShowAndRun()
 }
+
+//---------------------------------------------------------------------------//
+//								О программе
+//---------------------------------------------------------------------------//
 
 var gCurrentTheme bool
 
@@ -139,11 +144,11 @@ func abautProgramm() {
 	img.Resize(fyne.NewSize(66, 90)) //без изменений
 	img.Move(fyne.NewPos(10, 10))
 
-	l0 := widget.NewLabel(gProgramName)
+	l0 := widget.NewLabel(gForm.ProgramName)
 	l0.Move(fyne.NewPos(80, 10))
-	l1 := widget.NewLabel(fmt.Sprintf("Версия %s", gVersion))
+	l1 := widget.NewLabel(fmt.Sprintf("Версия %s", gForm.Version))
 	l1.Move(fyne.NewPos(80, 40))
-	l2 := widget.NewLabel(fmt.Sprintf("© ПАО «Электромеханика», %s", gYear))
+	l2 := widget.NewLabel(fmt.Sprintf("© ПАО «Электромеханика», %s", gForm.Year))
 	l2.Move(fyne.NewPos(80, 70))
 
 	box := container.NewWithoutLayout(img, l0, l1, l2)
@@ -158,6 +163,36 @@ func getTitle(str string) *widget.Label {
 	style.Bold = true
 
 	return widget.NewLabelWithStyle(str, fyne.TextAlignCenter, style)
+}
+
+// DescriptionForm то что изменяется от входных значений
+type DescriptionForm struct {
+	Version, Year, ProgramName string
+
+	Status binding.String
+
+	RelayY  *widget.Check
+	RelayRY *widget.Check
+	RelayU  *widget.Check
+
+	EntryDiameter    *numericalEntry
+	EntryNumberTeeth *numericalEntry
+
+	// бокс с сигналами 3ПВ
+
+}
+
+// обновить данные на форме если было изменено значение УПП
+func refreshForm() (err error) {
+
+	gForm.RelayY.Text = fmt.Sprintf("%d", gBU.RelayY)
+	gForm.RelayRY.Text = fmt.Sprintf("%d", gBU.RelayRY)
+	gForm.RelayU.Text = fmt.Sprintf("%d", gBU.RelayU)
+
+	gForm.EntryDiameter.Entry.SetText(fmt.Sprintf("%d", gBU.BandageDiameter1)) // todo вызывает OnChanged? нужна иниц!
+	gForm.EntryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gBU.NumberTeeth))
+
+	return
 }
 
 //---------------------------------------------------------------------------//
@@ -219,9 +254,9 @@ func getListCAN() fyne.CanvasObject {
 			// найти в toml файле, который сначала нужно сделать
 			// описание в строку статуса
 			sErrorDescription := getErrorDescription(sCodeError)
-			gStatusString.Set(fmt.Sprintf("H%s: %s", sCodeError, sErrorDescription))
+			gForm.Status.Set(fmt.Sprintf("H%s: %s", sCodeError, sErrorDescription))
 		} else {
-			gStatusString.Set("")
+			gForm.Status.Set("")
 		}
 	}
 
@@ -407,7 +442,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 1)\n")
-			gStatusString.Set("Ошибка в поле ввода «Скорость 1»")
+			gForm.Status.Set("Ошибка в поле ввода «Скорость 1»")
 			return
 		}
 		if sep, _ := separately.Get(); !sep { // !не раздельное управление
@@ -418,10 +453,10 @@ func speed() fyne.CanvasObject {
 	entrySpeed1.Entry.OnSubmitted = func(str string) { // todo если пусто устанавливать ноль?
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
-			gStatusString.Set("Ошибка установки скорости")
+			gForm.Status.Set("Ошибка установки скорости")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		if strings.Contains(str, ".") {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 			entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
@@ -436,7 +471,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 2)\n")
-			gStatusString.Set("Ошибка в поле ввода «Скорость 2»")
+			gForm.Status.Set("Ошибка в поле ввода «Скорость 2»")
 			return
 		}
 		if sep, _ := separately.Get(); !sep {
@@ -447,10 +482,10 @@ func speed() fyne.CanvasObject {
 	entrySpeed2.Entry.OnSubmitted = func(str string) {
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
-			gStatusString.Set("Ошибка установки скорости")
+			gForm.Status.Set("Ошибка установки скорости")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		if strings.Contains(str, ".") {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 			entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
@@ -469,7 +504,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
-			gStatusString.Set("Ошибка в поле ввода «Ускорение 1»")
+			gForm.Status.Set("Ошибка в поле ввода «Ускорение 1»")
 			return
 		}
 		if sep, _ := separately.Get(); !sep {
@@ -480,10 +515,10 @@ func speed() fyne.CanvasObject {
 	entryAccel1.Entry.OnSubmitted = func(str string) {
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
-			gStatusString.Set("Ошибка установки ускорения")
+			gForm.Status.Set("Ошибка установки ускорения")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
 		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
@@ -493,7 +528,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 2)\n")
-			gStatusString.Set("Ошибка в поле ввода «Ускорение 2»")
+			gForm.Status.Set("Ошибка в поле ввода «Ускорение 2»")
 			return
 		}
 		if sep, _ := separately.Get(); !sep {
@@ -504,10 +539,10 @@ func speed() fyne.CanvasObject {
 	entryAccel2.Entry.OnSubmitted = func(str string) {
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
-			gStatusString.Set("Ошибка установки ускорения")
+			gForm.Status.Set("Ошибка установки ускорения")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
 		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
@@ -531,11 +566,11 @@ func speed() fyne.CanvasObject {
 			}
 		}
 		if err = sp.SetMotion(direction1); err != nil { // todo должно быть два напревления
-			gStatusString.Set("Ошибка установки направления движения")
+			gForm.Status.Set("Ошибка установки направления движения")
 			return
 		}
 		fmt.Printf("Направление: %s\n", s)
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 	})
 	selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
@@ -551,11 +586,11 @@ func speed() fyne.CanvasObject {
 			}
 		}
 		if err = sp.SetMotion(direction2); err != nil {
-			gStatusString.Set("Ошибка установки направления движения")
+			gForm.Status.Set("Ошибка установки направления движения")
 			return
 		}
 		fmt.Printf("Направление: %s\n", s)
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 	})
 	selectDirection1.SetSelectedIndex(0) //"Вперёд"
 	selectDirection2.SetSelectedIndex(0) //"Вперёд"
@@ -583,14 +618,14 @@ func speed() fyne.CanvasObject {
 	entryMileage := newSpecialEntry("0") //20000
 	entryMileage.Entry.OnChanged = func(str string) {
 		if strings.Contains(str, ".") {
-			gStatusString.Set("Ошибка в поле ввода «Дистанция»: введите целое число")
+			gForm.Status.Set("Ошибка в поле ввода «Дистанция»: введите целое число")
 			return
 		}
 		d, err := strconv.Atoi(str)
 		if err != nil {
 			setDistance = 0
 			fmt.Printf("Ошибка перевода строки в число (путь)\n")
-			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
+			gForm.Status.Set("Ошибка в поле ввода «Дистанция»")
 			return
 		}
 		setDistance = uint32(d)
@@ -601,21 +636,21 @@ func speed() fyne.CanvasObject {
 	buttonMileage := widget.NewButton("Пуск", func() {
 		// todo кнопка стоп?
 		if 0 == setDistance {
-			gStatusString.Set("Ошибка в поле ввода «Дистанция»")
+			gForm.Status.Set("Ошибка в поле ввода «Дистанция»")
 			return
 		}
 		if err = sp.SetLimitWay(setDistance); err != nil {
 			fmt.Printf("Ошибка установки пути\n")
-			gStatusString.Set("Ошибка установки пути")
+			gForm.Status.Set("Ошибка установки пути")
 			return
 		}
 		time.Sleep(1 * time.Second) // не успевает сбросится счетчик
 		if startDistance, _, err = sp.GetWay(); err != nil {
 			fmt.Printf("Ошибка: не получено значение пути с ИПК\n")
-			gStatusString.Set("Ошибка: не получено значение пути с ИПК")
+			gForm.Status.Set("Ошибка: не получено значение пути с ИПК")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		fmt.Printf("Путь: %d м (%v)\n", setDistance, err)
 		distanceCheck = true
 		entryMileage.Entry.SetText(fmt.Sprintf("%d", setDistance))
@@ -637,10 +672,10 @@ func speed() fyne.CanvasObject {
 				m, _, err := sp.GetWay()
 				if err != nil {
 					fmt.Printf("Не получено значение пути с ИПК\n")
-					gStatusString.Set("Ошибка: не получено значение пути с ИПК")
+					gForm.Status.Set("Ошибка: не получено значение пути с ИПК")
 					break
 				} else {
-					gStatusString.Set(" ")
+					gForm.Status.Set(" ")
 				}
 				fmt.Println(m)
 				m -= startDistance
@@ -658,7 +693,7 @@ func speed() fyne.CanvasObject {
 	// ------------------------- box 3 ----------------------------
 
 	var press1, press2, press3 float64
-	limit1, limit2, limit3 := 10., gDevice.PressureLimit, 10.
+	limit1, limit2, limit3 := 10., gBU.PressureLimit, 10.
 
 	// обработка давления
 	entryPress1 := newSpecialEntry("0.0")
@@ -666,20 +701,20 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if press1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 1)\n")
-			gStatusString.Set("Ошибка в поле ввода «Давление 1»")
+			gForm.Status.Set("Ошибка в поле ввода «Давление 1»")
 			return
 		}
 		if press1 > limit1 {
-			gStatusString.Set(fmt.Sprintf("Давление 1: максимум %.0f кгс/см2", limit1))
+			gForm.Status.Set(fmt.Sprintf("Давление 1: максимум %.0f кгс/см2", limit1))
 		}
 	}
 	entryPress1.Entry.OnSubmitted = func(str string) {
 		if err = channel1.Set(press1); err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
-			gStatusString.Set("Ошибка установки давления 1")
+			gForm.Status.Set("Ошибка установки давления 1")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
 		entryPress1.Entry.SetText(fmt.Sprintf("%.1f", press1))
 	}
@@ -690,20 +725,20 @@ func speed() fyne.CanvasObject {
 		press2, err = strconv.ParseFloat(str, 64)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 2)\n")
-			gStatusString.Set("Ошибка в поле ввода «Давление 2»")
+			gForm.Status.Set("Ошибка в поле ввода «Давление 2»")
 			return
 		}
 		if press2 > limit2 {
-			gStatusString.Set(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2))
+			gForm.Status.Set(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2))
 		}
 	}
 	entryPress2.Entry.OnSubmitted = func(str string) {
 		if err = channel2.Set(press2); err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
-			gStatusString.Set("Ошибка установки давления 2")
+			gForm.Status.Set("Ошибка установки давления 2")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
 		entryPress2.Entry.SetText(fmt.Sprintf("%.1f", press2))
 	}
@@ -714,11 +749,11 @@ func speed() fyne.CanvasObject {
 		press3, err = strconv.ParseFloat(str, 64)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 3)\n")
-			gStatusString.Set("Ошибка в поле ввода «Давление 3»")
+			gForm.Status.Set("Ошибка в поле ввода «Давление 3»")
 			return
 		}
 		if press3 > limit3 {
-			gStatusString.Set(fmt.Sprintf("Давление 3: максимум %.0f кгс/см2", limit3))
+			gForm.Status.Set(fmt.Sprintf("Давление 3: максимум %.0f кгс/см2", limit3))
 		}
 	}
 	entryPress3.Entry.OnSubmitted = func(str string) {
@@ -726,7 +761,7 @@ func speed() fyne.CanvasObject {
 			fmt.Printf("Ошибка установки давления 3\n")
 			return
 		}
-		gStatusString.Set(" ")
+		gForm.Status.Set(" ")
 		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
 		entryPress3.Entry.SetText(fmt.Sprintf("%.1f", press3))
 	}
@@ -741,54 +776,54 @@ func speed() fyne.CanvasObject {
 	// -------------------------extra box 3 ----------------------------
 
 	stringLen := 4
-	sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)) // предустановка
+	sp.Init(fcs, uint32(gBU.NumberTeeth), uint32(gBU.BandageDiameter1)) // предустановка
 
 	// обработка доп. параметры
-	entryDiameter := newNumericalEntry()
-	entryDiameter.Entry.Wrapping = fyne.TextWrapOff
-	entryDiameter.Entry.TextStyle.Monospace = true
-	entryDiameter.Entry.SetText(fmt.Sprintf("%d", gDevice.BandageDiameter1))
-	entryDiameter.Entry.OnChanged = func(str string) {
+	gForm.EntryDiameter = newNumericalEntry()
+	gForm.EntryDiameter.Entry.Wrapping = fyne.TextWrapOff
+	gForm.EntryDiameter.Entry.TextStyle.Monospace = true
+	gForm.EntryDiameter.Entry.SetText(fmt.Sprintf("%d", gBU.BandageDiameter1))
+	gForm.EntryDiameter.Entry.OnChanged = func(str string) {
 		if len(str) > stringLen {
-			entryDiameter.Entry.SetText(str[0:stringLen]) // нечего тут делать длинной строке
+			gForm.EntryDiameter.Entry.SetText(str[0:stringLen]) // нечего тут делать длинной строке
 			return
 		}
 		val, err := strconv.Atoi(str)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (диаметр бандажа)\n")
-			gStatusString.Set("Ошибка в поле ввода «Диаметр»")
+			gForm.Status.Set("Ошибка в поле ввода «Диаметр»")
 			return
 		}
-		gDevice.BandageDiameter1 = uint32(val)
-		if err = sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.BandageDiameter1)); err != nil {
+		gBU.BandageDiameter1 = uint32(val)
+		if err = sp.Init(fcs, uint32(gBU.NumberTeeth), uint32(gBU.BandageDiameter1)); err != nil {
 			fmt.Printf("Ошибка установки параметров: %v\n", err)
-			gStatusString.Set("Ошибка установки параметров имитации")
+			gForm.Status.Set("Ошибка установки параметров имитации")
 		}
-		entryDiameter.Entry.SetText(fmt.Sprintf("%d", gDevice.BandageDiameter1))
-		gStatusString.Set(" ")
+		gForm.EntryDiameter.Entry.SetText(fmt.Sprintf("%d", gBU.BandageDiameter1))
+		gForm.Status.Set(" ")
 	}
 
-	entryNumberTeeth := newNumericalEntry()
-	entryNumberTeeth.Entry.Wrapping = fyne.TextWrapOff
-	entryNumberTeeth.Entry.TextStyle.Monospace = true
-	entryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gDevice.NumberTeeth))
-	entryNumberTeeth.Entry.OnChanged = func(str string) {
+	gForm.EntryNumberTeeth = newNumericalEntry()
+	gForm.EntryNumberTeeth.Entry.Wrapping = fyne.TextWrapOff
+	gForm.EntryNumberTeeth.Entry.TextStyle.Monospace = true
+	gForm.EntryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gBU.NumberTeeth))
+	gForm.EntryNumberTeeth.Entry.OnChanged = func(str string) {
 		if len(str) > stringLen {
-			entryNumberTeeth.Entry.SetText(str[0:stringLen])
+			gForm.EntryNumberTeeth.Entry.SetText(str[0:stringLen])
 			return
 		}
 		val, err := strconv.Atoi(str)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (количество зубьев)\n")
-			gStatusString.Set("Ошибка в поле ввода «Число зубьев»")
+			gForm.Status.Set("Ошибка в поле ввода «Число зубьев»")
 			return
 		}
-		gDevice.NumberTeeth = uint32(val)
-		sp.Init(fcs, uint32(gDevice.NumberTeeth), uint32(gDevice.NumberTeeth))
-		entryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gDevice.NumberTeeth))
-		gStatusString.Set(" ")
+		gBU.NumberTeeth = uint32(val)
+		sp.Init(fcs, uint32(gBU.NumberTeeth), uint32(gBU.NumberTeeth))
+		gForm.EntryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gBU.NumberTeeth))
+		gForm.Status.Set(" ")
 	}
-	extbox := container.NewHBox(widget.NewLabel("Число зубьев:     "), entryNumberTeeth, widget.NewLabel("Диаметр (мм):  "), entryDiameter)
+	extbox := container.NewHBox(widget.NewLabel("Число зубьев:     "), gForm.EntryNumberTeeth, widget.NewLabel("Диаметр (мм):  "), gForm.EntryDiameter)
 	extParam := container.NewVBox(getTitle("Параметры имитатора:"), extbox)
 
 	boxAll := container.NewVBox(boxSpeed, boxMileage, boxPress, extParam, dummy)
@@ -959,12 +994,12 @@ func outputSignals() fyne.CanvasObject {
 // Уставки, входы БУС = считать
 func inputSignals() fyne.CanvasObject {
 
-	check1 := widget.NewCheck("1", nil)
-	check20 := widget.NewCheck("20", nil)
-	checkY := widget.NewCheck(gUPP[14].Value, nil)  // 80 V(ж) todo подписи через label binding.String
-	checkRY := widget.NewCheck(gUPP[15].Value, nil) // 60 V(кж)
-	checkU := widget.NewCheck(gUPP[16].Value, nil)  // 30 V(упр)
-	boxRelay := container.NewHBox(check1, check20, checkY, checkRY, checkU)
+	relay1 := widget.NewCheck("1", nil)
+	relay20 := widget.NewCheck("20", nil)
+	gForm.RelayY = widget.NewCheck(fmt.Sprintf("%d", gBU.RelayY), nil)   // ~45 V(ж)
+	gForm.RelayRY = widget.NewCheck(fmt.Sprintf("%d", gBU.RelayRY), nil) // ~30 V(кж)
+	gForm.RelayU = widget.NewCheck(fmt.Sprintf("%d", gBU.RelayU), nil)   // ~10 V(упр)
+	boxRelay := container.NewHBox(relay1, relay20, gForm.RelayY, gForm.RelayRY, gForm.RelayU)
 
 	// labelBUS := widget.NewLabel("Входы БУС:")
 	checkPSS2 := widget.NewCheck("ПСС2", nil)
@@ -984,29 +1019,29 @@ func inputSignals() fyne.CanvasObject {
 			}
 
 			if bin&0x100 == 0x100 {
-				check1.SetChecked(true)
+				relay1.SetChecked(true)
 			} else {
-				check1.SetChecked(false)
+				relay1.SetChecked(false)
 			}
 			if bin&0x200 == 0x200 {
-				check20.SetChecked(true)
+				relay20.SetChecked(true)
 			} else {
-				check20.SetChecked(false)
+				relay20.SetChecked(false)
 			}
 			if bin&0x400 == 0x400 {
-				checkY.SetChecked(true)
+				gForm.RelayY.SetChecked(true)
 			} else {
-				checkY.SetChecked(false)
+				gForm.RelayY.SetChecked(false)
 			}
 			if bin&0x800 == 0x800 {
-				checkRY.SetChecked(true)
+				gForm.RelayRY.SetChecked(true)
 			} else {
-				checkRY.SetChecked(false)
+				gForm.RelayRY.SetChecked(false)
 			}
 			if bin&0x1000 == 0x1000 {
-				checkU.SetChecked(true)
+				gForm.RelayU.SetChecked(true)
 			} else {
-				checkU.SetChecked(false)
+				gForm.RelayU.SetChecked(false)
 			}
 			pss2, _ := fas.GetBinaryInputVal(0) // ПСС2
 			if pss2 {
@@ -1052,16 +1087,15 @@ func inputSignals() fyne.CanvasObject {
 
 func top() fyne.CanvasObject {
 
-	deviceChoice := []string{"БУ-3П", "БУ-3ПА", "БУ-3ПВ", "БУ-4"} // +kpd
 	var selectDevice *widget.Select
-	selectDevice = widget.NewSelect(deviceChoice, func(s string) {
-		gDevice.NameBU = s
+	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
+		gBU.Name = s
 	})
-	selectDevice.SetSelectedIndex(2)
+	selectDevice.SetSelectedIndex(BU3PV)
 
 	checkPower := widget.NewCheck("Питание КПД", func(on bool) {
 		powerBU(on)
-		gDevice.Power = on
+		gBU.Power = on
 	})
 	checkPower.SetChecked(true) // питание включается при старте? todo
 
@@ -1080,7 +1114,7 @@ func top() fyne.CanvasObject {
 }
 
 func showFormUPP() {
-	var paramEntry = make(map[int]*widget.Entry) // todo добавить в gUPP?
+	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
 
 	// переход в режим обслуживания
@@ -1134,15 +1168,17 @@ func showFormUPP() {
 	// записать то что на форме в БУ
 	writeButton := widget.NewButton("Записать", func() {
 		// проверить все введенные данные
-		for _, upp := range gUPP {
+		for number, upp := range gUPP {
+			upp.Value = paramEntry[number].Text
 			if err := upp.checkValueUPP(); err != nil {
 				statusLabel.SetText(err.Error())
+				return
 			}
 		}
 		// записать всё в gUPP
-		for number, val := range gUPP {
-			val.Value = paramEntry[number].Text
-			gUPP[number] = val
+		for number, upp := range gUPP {
+			upp.Value = paramEntry[number].Text
+			gUPP[number] = upp
 		}
 		// записать полученное в БУ
 		if err := writeUPPtoBU(); err != nil {
@@ -1150,9 +1186,9 @@ func showFormUPP() {
 		} else {
 			writeUPPtoTOML()
 			statusLabel.SetText("УПП записаны успешно")
+			refreshDataBU() // todo легко забыть изменить
+			refreshForm()
 		}
-		// отобразить на экране
-		// todo
 	})
 
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)

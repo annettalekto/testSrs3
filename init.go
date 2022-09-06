@@ -4,9 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"fyne.io/fyne/v2/data/binding"
-	"fyne.io/fyne/v2/widget"
-
 	"github.com/amdf/ipk"
 	"github.com/amdf/ixxatvci3/candev"
 )
@@ -23,37 +20,43 @@ var channel1 ipk.PressureOutput // sensorTM Переменная для зада
 var channel2 ipk.PressureOutput // sensorTC Переменная для задания давления ТЦ в кгс/см² (канал 2)
 var channel3 ipk.PressureOutput // sensorGR Переменная для задания давления GR в кгс/см²
 
-// todo init before:
-/*
-	получить значения с БУ по CAN, проинициализировать ИПК, глобальные структуры
-	initForm вывести на форму
-	после установки УПП вызвать InitForm для изменения элементов
-*/
+var gBU DescriptionBU
+var gDeviceChoice = []string{"БУ-3П", "БУ-3ПА", "БУ-3ПВ", "БУ-4"} // +kpd +CH? todo
 
-// DescriptionBU lsdk;
+// OptionsBU варианты подключаемых БУ:
+const (
+	BU3P = iota
+	BU3PA
+	BU3PV
+	BU4
+)
+
+// OptionsBU варианты подключаемых БУ
+type OptionsBU int
+
+// DescriptionBU основные значения БУ
 type DescriptionBU struct {
-	NameBU string
-	Power  bool //gBU.Power
-	// BandageDiameter1 uint32 не дублиролвать gUPP
-	// BandageDiameter2 uint32
-	// PressureLimit    float64
-	// NumberTeeth      uint32
-	// ScaleLimit       uint32
+	Name             string
+	Variant          OptionsBU
+	Power            bool
+	BandageDiameter1 uint32
+	BandageDiameter2 uint32
+	PressureLimit    float64
+	NumberTeeth      uint32
+	ScaleLimit       uint32
+	RelayY           int
+	RelayRY          int
+	RelayU           int
 }
 
-// DescriptionForm sdagd
-type DescriptionForm struct {
-	Status binding.String // gForm.Status
-	// реле
-	RelayY *widget.Check
-	// checkY := widget.NewCheck(gUPP[14].Value, nil)  // 80 V(ж)
-	// checkRY := widget.NewCheck(gUPP[15].Value, nil) // 60 V(кж)
-	// checkU
+func initData() (err error) {
+	gBU.Variant = BU3PV
+	gBU.Name = gDeviceChoice[BU3PV]
 
-	// бандаж и зубы
+	readUPPfromTOML()     // читаем имена признаков БУ, подсказки, предустановленные значения
+	err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
 
-	// бокс с сигналами 3ПВ
-
+	return
 }
 
 func initIPK() (err error) {
@@ -106,7 +109,7 @@ func initIPK() (err error) {
 		return
 	}
 
-	if channel2.Init(channelN6, ipk.DACAtmosphere, gDevice.PressureLimit); err != nil {
+	if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
 		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
 		return
 	}
@@ -122,7 +125,7 @@ func initIPK() (err error) {
 // InitFreqIpkChannel init
 func InitFreqIpkChannel() (err error) {
 
-	if err = sp.Init(fcs, gDevice.NumberTeeth, gDevice.BandageDiameter1); err == nil {
+	if err = sp.Init(fcs, gBU.NumberTeeth, gBU.BandageDiameter1); err == nil {
 
 		go func() { // начинаем в фоне обновлять данные по скорости
 			for {

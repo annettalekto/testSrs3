@@ -67,7 +67,7 @@ func setCurrentTimeBU() (err error) {
 // ответ  x5C0 len=5 номер УПП + 4 байта данные мл.байтом вперед
 // и в режиме работы и обслуживания
 
-// прочитать УПП из БУ
+// прочитать УПП из БУ в gUPP
 func readUPPfromBU() (err error) {
 	const bu3pSysInfo = 0x5C0
 	const bu3pQueryInfo = 0x5C1
@@ -80,7 +80,10 @@ func readUPPfromBU() (err error) {
 
 		can25.Send(msg)
 		msg, err = can25.GetMsgByID(bu3pSysInfo, 2*time.Second)
-		if err == nil && msg.Data[0] == byte(number) {
+		if err != nil {
+			err = errors.New("Не получено значение УПП с блока по CAN")
+			return
+		} else if msg.Data[0] == byte(number) {
 			v := binary.LittleEndian.Uint32(msg.Data[1:])
 			if number == 10 {
 				value.Value = fmt.Sprintf("%.1f", float32(v)/10.)
@@ -90,6 +93,7 @@ func readUPPfromBU() (err error) {
 		}
 		gUPP[number] = value
 	}
+	err = refreshDataBU()
 
 	return
 }

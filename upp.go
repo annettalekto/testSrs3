@@ -10,6 +10,8 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+var gUPP = make(map[int]DataUPP)
+
 // DataUPP upp
 type DataUPP struct {
 	Mod   int
@@ -18,21 +20,10 @@ type DataUPP struct {
 	Hint  string
 }
 
-type descriptionType struct { // todo имя
-	NameBU           string
-	Power            bool
-	BandageDiameter1 uint32
-	BandageDiameter2 uint32
-	PressureLimit    float64
-	NumberTeeth      uint32
-	ScaleLimit       uint32
-}
-
-var gUPP = make(map[int]DataUPP) // все признаки todo все глобальные?
-var gDevice descriptionType      // gBU.Name
-
-func readUPPfromTOML() {
-	var err error
+// Прочиать УПП из toml: имена, значения УПП, подсказки и граничные значения
+// сохранить в gUPP
+// запускать функцию первой
+func readUPPfromTOML() (err error) {
 	var data struct {
 		UPP struct {
 			Name  map[string]string
@@ -55,36 +46,7 @@ func readUPPfromTOML() {
 		upp.Hint = data.UPP.Hint[i]
 		gUPP[number] = upp
 	}
-
-	// из всех признаков выбираем те что используются в расчётах
-	ival, err := strconv.Atoi(gUPP[2].Value)
-	if err != nil {
-		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[2].Name, ival)
-	}
-	gDevice.BandageDiameter1 = uint32(ival)
-
-	ival, err = strconv.Atoi(gUPP[3].Value)
-	if err != nil {
-		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[3].Name, ival)
-	}
-	gDevice.BandageDiameter2 = uint32(ival)
-
-	ival, err = strconv.Atoi(gUPP[7].Value)
-	if err != nil {
-		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[7].Name, ival)
-	}
-	gDevice.NumberTeeth = uint32(ival)
-
-	gDevice.PressureLimit, err = strconv.ParseFloat(gUPP[12].Value, 64)
-	if err != nil {
-		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[12].Name, gUPP[12].Value)
-	}
-
-	ival, err = strconv.Atoi(gUPP[8].Value)
-	if err != nil {
-		fmt.Printf("ОШИБКА. Значение УПП: \"%s\" не верно: %v\n", gUPP[8].Name, ival)
-	}
-	gDevice.ScaleLimit = uint32(ival)
+	err = refreshDataBU()
 
 	return
 }
@@ -207,5 +169,65 @@ func writeUPPtoBU() (err error) {
 			return
 		}
 	}
+	return
+}
+
+func refreshDataBU() (err error) {
+	// из всех признаков выбираем те что используются в расчётах и установках
+	i := 2
+	ival, err := strconv.Atoi(gUPP[i].Value)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+	}
+	gBU.BandageDiameter1 = uint32(ival)
+
+	i = 3
+	ival, err = strconv.Atoi(gUPP[i].Value)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+	}
+	gBU.BandageDiameter2 = uint32(ival)
+
+	i = 7
+	ival, err = strconv.Atoi(gUPP[i].Value)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+	}
+	gBU.NumberTeeth = uint32(ival)
+
+	i = 12
+	gBU.PressureLimit, err = strconv.ParseFloat(gUPP[i].Value, 64)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, gUPP[i].Value)
+	}
+
+	i = 8
+	ival, err = strconv.Atoi(gUPP[i].Value)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+	}
+	gBU.ScaleLimit = uint32(ival)
+
+	i = 14
+	ival, err = strconv.Atoi(gUPP[i].Value)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+	}
+	gBU.RelayY = ival
+
+	i = 15
+	ival, err = strconv.Atoi(gUPP[i].Value)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+	}
+	gBU.RelayRY = ival
+
+	i = 16
+	ival, err = strconv.Atoi(gUPP[i].Value)
+	if err != nil {
+		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+	}
+	gBU.RelayU = ival
+
 	return
 }
