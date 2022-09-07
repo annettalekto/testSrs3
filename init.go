@@ -49,12 +49,12 @@ type DescriptionBU struct {
 	RelayU           int
 }
 
-func initData() (err error) {
+func initData() {
 	gBU.Variant = BU3PV
 	gBU.Name = gDeviceChoice[BU3PV]
 
-	readUPPfromTOML()     // читаем имена признаков БУ, подсказки, предустановленные значения
-	err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
+	// readUPPfromTOML()     // читаем имена признаков БУ, подсказки, предустановленные значения
+	// err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
 
 	return
 }
@@ -144,4 +144,19 @@ func powerBU(on bool) {
 
 func turt(on bool) {
 	fds.SetTURT(on)
+}
+
+func getNameTOML() (s string) {
+
+	switch gBU.Variant {
+	case BU3P:
+		s = ".\\toml\\bu3p.toml"
+	case BU3PA:
+		s = ".\\toml\\bu3pa.toml"
+	case BU3PV:
+		s = ".\\toml\\bu3pv.toml"
+	case BU4:
+		s = ".\\toml\\bu4.toml"
+	}
+	return
 }
