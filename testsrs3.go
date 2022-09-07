@@ -174,10 +174,7 @@ type DescriptionForm struct {
 	RelayU  *widget.Check
 
 	Parameters binding.String
-	// EntryDiameter    *numericalEntry
-	// EntryNumberTeeth *numericalEntry
 
-	// бокс с сигналами 3ПВ
 	BoxBUS    *fyne.Container
 	BoxOut50V *fyne.Container
 }
@@ -192,9 +189,7 @@ func refreshForm() (err error) {
 	gForm.RelayRY.Refresh()
 	gForm.RelayU.Refresh()
 
-	gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter1))
-	// gForm.EntryDiameter.Entry.SetText(fmt.Sprintf("%d", gBU.BandageDiameter1)) // todo вызывает OnChanged? нужна иниц!
-	// gForm.EntryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gBU.NumberTeeth))
+	gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
 
 	switch gBU.Variant {
 	case BU3P, BU3PA:
@@ -276,7 +271,6 @@ func getListCAN() fyne.CanvasObject {
 		}
 	}
 
-	// mapDataCAN := make(map[uint32][8]byte)
 	// обновление данных
 	go func() {
 		for {
@@ -616,7 +610,7 @@ func speed() fyne.CanvasObject {
 	labelParameters := widget.NewLabel("")
 	gForm.Parameters = binding.NewString() //todo в init?
 	labelParameters.Bind(gForm.Parameters)
-	gForm.Parameters.Set(fmt.Sprintf("Число зубьев %d, диаметр бандажа %d мм", gBU.NumberTeeth, gBU.BandageDiameter1))
+	gForm.Parameters.Set(fmt.Sprintf("Число зубьев %d, диаметр бандажа %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
 
 	box1 := container.NewGridWithColumns(
 		3,
@@ -793,59 +787,6 @@ func speed() fyne.CanvasObject {
 		entryPress1, entryPress2, entryPress3,
 	)
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
-
-	// -------------------------extra box 3 ----------------------------
-
-	//stringLen := 4
-	// sp.Init(fcs, uint32(gBU.NumberTeeth), uint32(gBU.BandageDiameter1)) // предустановка
-
-	// обработка доп. параметры
-	/*gForm.EntryDiameter = newNumericalEntry()
-	gForm.EntryDiameter.Entry.Wrapping = fyne.TextWrapOff
-	gForm.EntryDiameter.Entry.TextStyle.Monospace = true
-	gForm.EntryDiameter.Entry.SetText(fmt.Sprintf("%d", gBU.BandageDiameter1))
-	gForm.EntryDiameter.Entry.OnChanged = func(str string) {
-		if len(str) > stringLen {
-			gForm.EntryDiameter.Entry.SetText(str[0:stringLen]) // нечего тут делать длинной строке
-			return
-		}
-		val, err := strconv.Atoi(str)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (диаметр бандажа)\n")
-			gForm.Status.Set("Ошибка в поле ввода «Диаметр»")
-			return
-		}
-		gBU.BandageDiameter1 = uint32(val) // todo неверно! нуден OnSubmitted
-		if err = sp.Init(fcs, uint32(gBU.NumberTeeth), uint32(gBU.BandageDiameter1)); err != nil {
-			fmt.Printf("Ошибка установки параметров: %v\n", err)
-			gForm.Status.Set("Ошибка установки параметров имитации")
-		}
-		gForm.EntryDiameter.Entry.SetText(fmt.Sprintf("%d", gBU.BandageDiameter1))
-		gForm.Status.Set(" ")
-	}*/
-
-	/*gForm.EntryNumberTeeth = newNumericalEntry()
-	gForm.EntryNumberTeeth.Entry.Wrapping = fyne.TextWrapOff
-	gForm.EntryNumberTeeth.Entry.TextStyle.Monospace = true
-	gForm.EntryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gBU.NumberTeeth))
-	gForm.EntryNumberTeeth.Entry.OnChanged = func(str string) {
-		if len(str) > stringLen {
-			gForm.EntryNumberTeeth.Entry.SetText(str[0:stringLen])
-			return
-		}
-		val, err := strconv.Atoi(str)
-		if err != nil {
-			fmt.Printf("Ошибка перевода строки в число (количество зубьев)\n")
-			gForm.Status.Set("Ошибка в поле ввода «Число зубьев»")
-			return
-		}
-		gBU.NumberTeeth = uint32(val)
-		sp.Init(fcs, uint32(gBU.NumberTeeth), uint32(gBU.NumberTeeth))
-		gForm.EntryNumberTeeth.Entry.SetText(fmt.Sprintf("%d", gBU.NumberTeeth))
-		gForm.Status.Set(" ")
-	}
-	extbox := container.NewHBox(widget.NewLabel("Число зубьев:     "), gForm.EntryNumberTeeth, widget.NewLabel("Диаметр (мм):  "), gForm.EntryDiameter)
-	extParam := container.NewVBox(getTitle("Параметры имитатора:"), extbox)*/
 
 	boxAll := container.NewVBox(boxSpeed, boxMileage, boxPress, dummy)
 	box := container.NewHBox(dummy, boxAll, dummy)
@@ -1123,13 +1064,12 @@ func top() fyne.CanvasObject {
 	selectDevice.SetSelectedIndex(BU3PV)
 
 	checkPower := widget.NewCheck("Питание КПД", func(on bool) {
-		powerBU(on)
-		gBU.Power = on
+		gBU.Power(on)
 	})
-	checkPower.SetChecked(true) // питание включается при старте? todo
+	checkPower.SetChecked(true)
 
 	checkTurt := widget.NewCheck("Режим обслуживания", func(on bool) {
-		turt(on)
+		gBU.Turt(on)
 	})
 
 	buttonUPP := widget.NewButton("  УПП  ", func() {
@@ -1145,10 +1085,6 @@ func top() fyne.CanvasObject {
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
-
-	// переход в режим обслуживания
-	// defer обратненько
-	// todo вот после обновления УПП нужно еще и на форме значения обновить? 42 1350 и уставки скоростей
 
 	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -1196,7 +1132,7 @@ func showFormUPP() {
 
 	// записать то что на форме в БУ
 	writeButton := widget.NewButton("Записать", func() {
-		// проверить все введенные данные
+		// проверить все введенные данные на соответствие границам
 		for number, upp := range gUPP {
 			upp.Value = paramEntry[number].Text
 			if err := upp.checkValueUPP(); err != nil {
@@ -1204,6 +1140,14 @@ func showFormUPP() {
 				return
 			}
 		}
+		// дополнительные проверки
+		if !checkUPP() {
+			statusLabel.SetText("")
+			return
+		}
+
+		gBU.SetServiceMode()
+
 		// записать всё в gUPP
 		for number, upp := range gUPP {
 			upp.Value = paramEntry[number].Text
@@ -1218,6 +1162,8 @@ func showFormUPP() {
 			refreshDataBU() // todo легко забыть изменить
 			refreshForm()
 		}
+
+		gBU.SetOperateMode()
 	})
 
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)

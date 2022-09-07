@@ -151,6 +151,10 @@ func (d DataUPP) checkValueUPP() (err error) {
 
 func (d DataUPP) writeValue() (err error) {
 
+	if d.Mod == 3 {
+		err = setIntVal(2, d.Value) // бандаж 1
+		err = setIntVal(3, d.Value) // бандаж 2
+	}
 	if d.Mod == 10 {
 		err = setFloatVal(d.Mod, d.Value)
 	} else {
@@ -174,19 +178,12 @@ func writeUPPtoBU() (err error) {
 
 func refreshDataBU() (err error) {
 	// из всех признаков выбираем те что используются в расчётах и установках
-	i := 2
+	i := 3
 	ival, err := strconv.Atoi(gUPP[i].Value)
 	if err != nil {
 		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
 	}
-	gBU.BandageDiameter1 = uint32(ival)
-
-	i = 3
-	ival, err = strconv.Atoi(gUPP[i].Value)
-	if err != nil {
-		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
-	}
-	gBU.BandageDiameter2 = uint32(ival)
+	gBU.BandageDiameter = uint32(ival)
 
 	i = 7
 	ival, err = strconv.Atoi(gUPP[i].Value)
@@ -195,7 +192,7 @@ func refreshDataBU() (err error) {
 	}
 	gBU.NumberTeeth = uint32(ival)
 
-	i = 12
+	i = 12 // todo переинициализация этого
 	gBU.PressureLimit, err = strconv.ParseFloat(gUPP[i].Value, 64)
 	if err != nil {
 		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, gUPP[i].Value)
@@ -229,5 +226,11 @@ func refreshDataBU() (err error) {
 	}
 	gBU.RelayU = ival
 
+	return
+}
+
+func checkUPP() (ok bool) {
+	// дополнительные проверки UPP todo
+	ok = true
 	return
 }

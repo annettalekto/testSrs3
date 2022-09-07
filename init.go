@@ -36,17 +36,17 @@ type OptionsBU int
 
 // DescriptionBU основные значения БУ
 type DescriptionBU struct {
-	Name             string
-	Variant          OptionsBU
-	Power            bool
-	BandageDiameter1 uint32
-	BandageDiameter2 uint32
-	PressureLimit    float64
-	NumberTeeth      uint32
-	ScaleLimit       uint32
-	RelayY           int
-	RelayRY          int
-	RelayU           int
+	Name            string
+	Variant         OptionsBU
+	power           bool
+	turt            bool
+	BandageDiameter uint32
+	PressureLimit   float64
+	NumberTeeth     uint32
+	ScaleLimit      uint32
+	RelayY          int
+	RelayRY         int
+	RelayU          int
 }
 
 func initData() {
@@ -125,7 +125,7 @@ func initIPK() (err error) {
 // InitFreqIpkChannel init
 func InitFreqIpkChannel() (err error) {
 
-	if err = sp.Init(fcs, gBU.NumberTeeth, gBU.BandageDiameter1); err == nil {
+	if err = sp.Init(fcs, gBU.NumberTeeth, gBU.BandageDiameter); err == nil {
 
 		go func() { // начинаем в фоне обновлять данные по скорости
 			for {
@@ -138,12 +138,40 @@ func InitFreqIpkChannel() (err error) {
 	return
 }
 
-func powerBU(on bool) {
-	fds.Set50V(7, on)
+// Power питание БУ
+func (bu DescriptionBU) Power(on bool) {
+	bu.power = on
+	fds.Set50V(6, !on) // 1 -- выкл
 }
 
-func turt(on bool) {
+// Turt режим обслуживания
+func (bu DescriptionBU) Turt(on bool) {
+	bu.turt = on
 	fds.SetTURT(on)
+}
+
+// SetServiceMode перейти в режим обслуживания
+func (bu DescriptionBU) SetServiceMode() {
+	if bu.turt && bu.power {
+		return // режим установлен на главной форме
+	}
+	bu.Power(false)
+	bu.Turt(true)
+	time.Sleep(time.Second)
+	bu.Power(true)
+	time.Sleep(5 * time.Second)
+}
+
+// SetOperateMode рабочий режим
+func (bu DescriptionBU) SetOperateMode() {
+	if !bu.turt && bu.power {
+		return // режим установлен
+	}
+	bu.Power(false)
+	bu.Turt(false)
+	time.Sleep(time.Second)
+	bu.Power(true)
+	time.Sleep(5 * time.Second)
 }
 
 func getNameTOML() (s string) {
