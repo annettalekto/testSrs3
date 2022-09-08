@@ -67,6 +67,10 @@ func setCurrentTimeBU() (err error) {
 // ответ  x5C0 len=5 номер УПП + 4 байта данные мл.байтом вперед
 // и в режиме работы и обслуживания
 
+// 05 00 00 00 = 0.5
+// 00 00 01 00 = 1.0
+// 00 00 02 00 = 2.0
+
 // прочитать УПП из БУ в gUPP
 func readUPPfromBU() (err error) {
 	const bu3pSysInfo = 0x5C0
@@ -84,16 +88,24 @@ func readUPPfromBU() (err error) {
 			err = errors.New("Не получено значение УПП с блока по CAN")
 			return
 		} else if msg.Data[0] == byte(number) {
-			v := binary.LittleEndian.Uint32(msg.Data[1:])
 			if number == 10 {
-				value.Value = fmt.Sprintf("%.1f", float32(v)/10.)
+				if msg.Data[1] == 5 {
+					value.Value = "0.5"
+				}
+				if msg.Data[3] == 1 {
+					value.Value = "1.0"
+				}
+				if msg.Data[3] == 2 {
+					value.Value = "2.0"
+				}
 			} else {
+				v := binary.LittleEndian.Uint32(msg.Data[1:])
 				value.Value = fmt.Sprintf("%d", v)
 			}
 		}
 		gUPP[number] = value
 	}
-	err = refreshDataBU()
+	refreshDataBU()
 
 	return
 }
@@ -231,7 +243,8 @@ func byteToAddIndicator(data [8]byte) (str string) {
 5C5H Состояние периода кодирования и кода рельсовой цепи. Длина: 3 байта.
 1-й байт: период кодирования (16, 19, 60);
 2-й байт: время после последнего полного периода (время сбоя) в секундах;
-3-й байт: код рельсовой цепи (0 – сбой кода; 1 – код зеленого огня; 2 – код желтого с красным огня; 3 – код желтого огня).
+3-й байт: код рельсовой цепи (0 – сбой кода; 1 – код зеленого огня; 2 – код желтого с красным огня; 3 – код желтого огня). - блок выдает не так...
+блок выдает: кж - 1, ж - 2, з - 3
 */
 
 // получить состояние периода кодирования и кода рельсовой цепи
@@ -243,12 +256,12 @@ func byteToCodeIF(data [8]byte) (period, t, code int, str string) {
 	switch code {
 	case 0:
 		str = "сбой кода"
-	case 1:
-		str = fmt.Sprintf("З %.1f (%d с)", float32(period)/10, t) // "1=З"
-	case 2:
-		str = fmt.Sprintf("КЖ %.1f (%d с)", float32(period)/10, t) // "2=КЖ"
 	case 3:
-		str = fmt.Sprintf("Ж %.1f (%d с)", float32(period)/10, t) // "3=Ж"
+		str = fmt.Sprintf("З %.1f (%d с)", float32(period)/10, t)
+	case 1:
+		str = fmt.Sprintf("КЖ %.1f (%d с)", float32(period)/10, t)
+	case 2:
+		str = fmt.Sprintf("Ж %.1f (%d с)", float32(period)/10, t)
 	}
 	// fmt.Printf("Период кодирования: %d, код рельсовой цепи: %d, %v\n", period, code, err)
 
@@ -407,7 +420,7 @@ func byteToBinSignal(data [8]byte) (str string) {
 	// бит 7          не используется;
 
 	if (data[1] & 0x01) == 0x001 {
-		str = "движение вперед установлено"
+		str = "движение вперед установлено" // todo
 	} else {
 		str = "движение вперед..."
 	}

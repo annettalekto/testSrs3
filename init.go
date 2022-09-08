@@ -53,8 +53,8 @@ func initData() {
 	gBU.Variant = BU3PV
 	gBU.Name = gDeviceChoice[BU3PV]
 
-	// readUPPfromTOML()     // читаем имена признаков БУ, подсказки, предустановленные значения
-	// err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
+	readParamFromTOML() // читаем имена признаков БУ, подсказки, предустановленные значения
+	readUPPfromBU()     // читаем значения в блоке, с ними будет инициализироваться ИПК
 
 	return
 }
@@ -155,6 +155,10 @@ func (bu DescriptionBU) SetServiceMode() {
 	if bu.turt && bu.power {
 		return // режим установлен на главной форме
 	}
+	sp.SetSpeed(0, 0)
+	sp.SetAcceleration(0, 0)
+	time.Sleep(2 * time.Second)
+
 	bu.Power(false)
 	bu.Turt(true)
 	time.Sleep(time.Second)

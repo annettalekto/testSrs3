@@ -23,7 +23,7 @@ type DataUPP struct {
 // Прочиать УПП из toml: имена, значения УПП, подсказки и граничные значения
 // сохранить в gUPP
 // запускать функцию первой
-func readUPPfromTOML() (err error) {
+func readParamFromTOML() (err error) {
 	var data struct {
 		UPP struct {
 			Name  map[string]string
@@ -52,8 +52,8 @@ func readUPPfromTOML() (err error) {
 }
 
 // записать текущие УПП в файл
-func writeUPPtoTOML() {
-	f, err := os.Create("upp.toml")
+func writeParamToTOML() {
+	f, err := os.Create(getNameTOML())
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -65,7 +65,7 @@ func writeUPPtoTOML() {
 	}
 	sort.Ints(temp)
 
-	f.WriteString("#БУ-3ПВ\n\n")
+	f.WriteString(fmt.Sprintf("#%s\n\n", gBU.Name))
 	f.WriteString("[UPP.Name]\n")
 	for _, number := range temp {
 		f.WriteString(fmt.Sprintf("%d = \"%s\"\n", number, gUPP[number].Name))

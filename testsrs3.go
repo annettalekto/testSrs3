@@ -24,6 +24,12 @@ import (
 	"github.com/amdf/ixxatvci3/candev"
 )
 
+/*
+	Программа «электронная имитация параметров КПД»
+	– для дополнительной (ручной) проверки блоков на заводе (не для потребителя).
+	предполагается автоматический кабель
+*/
+
 var gForm DescriptionForm
 
 func main() {
@@ -1053,7 +1059,7 @@ func top() fyne.CanvasObject {
 	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
 		gBU.Variant = OptionsBU(selectDevice.SelectedIndex()) // gDeviceChoice[BU3PV]
 		gBU.Name = s                                          // BU3PV
-		readUPPfromTOML()
+		readParamFromTOML()
 		err := readUPPfromBU()
 		if err != nil {
 			gForm.Status.Set(err.Error())
@@ -1069,7 +1075,12 @@ func top() fyne.CanvasObject {
 	checkPower.SetChecked(true)
 
 	checkTurt := widget.NewCheck("Режим обслуживания", func(on bool) {
-		gBU.Turt(on)
+		gBU.Turt(on) // todo for debug
+		// if on {
+		// 	gBU.SetServiceMode()
+		// } else {
+		// 	gBU.SetOperateMode()
+		// }
 	})
 
 	buttonUPP := widget.NewButton("  УПП  ", func() {
@@ -1086,22 +1097,22 @@ func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
 
-	w := fyne.CurrentApp().NewWindow("УПП") // CurrentApp!
+	w := fyne.CurrentApp().NewWindow("УПП " + gBU.Name) // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
 	b := container.NewVBox()
 
-	// при старте показать сохраненные значения УПП (те что были записаны в прошлый раз)
-	readUPPfromTOML()
+	// при старте показать сохраненные значения УПП (те что были записаны в прошлый раз) лучше БУ...
+	readParamFromTOML()
 	var temp []int
 	for n := range gUPP {
 		temp = append(temp, n)
 	}
 	sort.Ints(temp)
 
-	for _, number := range temp {
+	for _, number := range temp { // gUPP это переменная с которой работает программа, не мешать ее со считанными todo
 		upp := gUPP[number]
 
 		nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", number, upp.Name))
@@ -1124,9 +1135,14 @@ func showFormUPP() {
 
 	// считать УПП записанные в БУ
 	readButton := widget.NewButton("УПП БУ", func() {
-		readUPPfromBU()
+		err := readUPPfromBU()
 		for number, upp := range gUPP {
 			paramEntry[number].SetText(upp.Value)
+		}
+		if err == nil {
+			statusLabel.SetText("УПП считаны успешно")
+		} else {
+			statusLabel.SetText(err.Error())
 		}
 	})
 
@@ -1146,7 +1162,7 @@ func showFormUPP() {
 			return
 		}
 
-		gBU.SetServiceMode()
+		// gBU.SetServiceMode() todo DEBUG
 
 		// записать всё в gUPP
 		for number, upp := range gUPP {
@@ -1157,13 +1173,13 @@ func showFormUPP() {
 		if err := writeUPPtoBU(); err != nil {
 			statusLabel.SetText(err.Error())
 		} else {
-			writeUPPtoTOML()
+			writeParamToTOML()
 			statusLabel.SetText("УПП записаны успешно")
 			refreshDataBU() // todo легко забыть изменить
 			refreshForm()
 		}
 
-		gBU.SetOperateMode()
+		// gBU.SetOperateMode() todo DEBUG
 	})
 
 	boxButtons := container.NewHBox(readButton, layout.NewSpacer(), writeButton)
