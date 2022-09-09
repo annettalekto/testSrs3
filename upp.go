@@ -31,7 +31,8 @@ func readParamFromTOML() (err error) {
 			Hint  map[string]string
 		}
 	}
-	_, err = toml.DecodeFile(getNameTOML(), &data)
+	b := getNameTOML()
+	_, err = toml.DecodeFile(b, &data)
 	if err != nil {
 		fmt.Println(err)
 	}
