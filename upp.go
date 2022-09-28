@@ -21,9 +21,10 @@ type DataUPP struct {
 }
 
 // Прочиать УПП из toml: имена, значения УПП, подсказки и граничные значения
+// (значения УПП сохраняются каждый раз при записи УПП в БУ, те "последние записанные")
 // сохранить в gUPP
 // запускать функцию первой
-func readParamFromTOML() (err error) {
+func readParamFromTOML() (mapupp map[int]DataUPP, err error) {
 	var data struct {
 		UPP struct {
 			Name  map[string]string
@@ -37,6 +38,8 @@ func readParamFromTOML() (err error) {
 		fmt.Println(err)
 	}
 
+	mapupp = make(map[int]DataUPP)
+
 	for i := range data.UPP.Name {
 		var upp DataUPP
 		number, _ := strconv.Atoi(i)
@@ -45,14 +48,14 @@ func readParamFromTOML() (err error) {
 		upp.Name = data.UPP.Name[i]
 		upp.Value = data.UPP.Value[i]
 		upp.Hint = data.UPP.Hint[i]
-		gUPP[number] = upp
+		mapupp[number] = upp
 	}
-	err = refreshDataBU()
+	// err = refreshDataBU()
 
 	return
 }
 
-// записать текущие УПП в файл
+// записать текущие УПП (gUPP) в файл
 func writeParamToTOML() {
 	f, err := os.Create(getNameTOML())
 	if err != nil {
@@ -177,8 +180,9 @@ func writeUPPtoBU() (err error) {
 	return
 }
 
+// проверить на корректность и обновить данные, для расчета и установки параметров
 func refreshDataBU() (err error) {
-	// из всех признаков выбираем те что используются в расчётах и установках
+
 	i := 3
 	ival, err := strconv.Atoi(gUPP[i].Value)
 	if err != nil {

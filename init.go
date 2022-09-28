@@ -49,12 +49,13 @@ type DescriptionBU struct {
 	RelayU          int
 }
 
-func initData() {
-	gBU.Variant = BU3PV
-	gBU.Name = gDeviceChoice[BU3PV]
+func initDataBU(variantBU OptionsBU) (err error) {
+	gBU.Variant = variantBU
+	gBU.Name = gDeviceChoice[variantBU]
 
-	readParamFromTOML() // читаем имена признаков БУ, подсказки, предустановленные значения
-	readUPPfromBU()     // читаем значения в блоке, с ними будет инициализироваться ИПК
+	mapupp, err := readParamFromTOML() // читаем имена признаков БУ, подсказки, предустановленные значения
+	gUPP = mapupp
+	readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
 
 	return
 }

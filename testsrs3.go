@@ -25,7 +25,7 @@ import (
 )
 
 /*
-	Программа «электронная имитация параметров КПД»
+	Программа «Электронная имитация параметров КПД»
 	– для дополнительной (ручной) проверки блоков на заводе (не для потребителя).
 	предполагается автоматический кабель
 */
@@ -45,7 +45,7 @@ func main() {
 	can25.Run()
 	defer can25.Stop()
 
-	initData()
+	initDataBU(BU3PV)
 
 	err = initIPK()
 	if err != nil {
@@ -112,7 +112,7 @@ func main() {
 
 	box := container.NewVSplit(box4, gStatusLabel)
 
-	showFormUPP()
+	// showFormUPP()
 
 	w.SetContent(box)
 	w.ShowAndRun()
@@ -191,11 +191,13 @@ type DescriptionForm struct {
 // обновить данные на форме если было изменено значение УПП или выбран новый блок
 func refreshForm() (err error) {
 
-	readParamFromTOML() // читаем для текущего БУ имена признаков, подсказки, предустановленные значения
-	readUPPfromBU()     // читаем значения в блоке, с ними будет инициализироваться ИПК
+	// mapupp, err := readParamFromTOML() // читаем для текущего БУ имена признаков, подсказки, предустановленные значения
+	// gUPP = mapupp
+	// refreshDataBU()
+	// readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
 
 	// инициализация ИПК с новыми параметрами:
-	// остановить все потоки и закрыть все что можно
+	// остановить все потоки и закрыть все что можно? todo
 	// initIPK()
 
 	gForm.RelayY.Text = fmt.Sprintf("%d", gBU.RelayY)
@@ -1065,12 +1067,19 @@ func inputSignals() fyne.CanvasObject {
 
 func top() fyne.CanvasObject {
 
+	var selectDevice *widget.Select
+	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
+		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
+		refreshForm()
+	})
+	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
+
 	checkPower := widget.NewCheck("Питание КПД", func(on bool) {
 		gBU.Power(on)
 	})
 	checkPower.SetChecked(true)
 
-	checkTurt := widget.NewCheck("Режим обслуживания", func(on bool) {
+	checkTurt := widget.NewCheck("TURT", func(on bool) { // Режим обслуживания
 		gBU.Turt(on) // todo for debug
 		// if on {
 		// 	gBU.SetServiceMode()
@@ -1083,14 +1092,13 @@ func top() fyne.CanvasObject {
 		showFormUPP()
 	})
 
-	box := container.New(layout.NewHBoxLayout() /*selectDevice,*/, checkPower, checkTurt, layout.NewSpacer(), buttonUPP)
+	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, checkTurt, layout.NewSpacer(), buttonUPP)
 
 	// box := container.NewHBox(selectDevice, checkPower, checkTurt, buttonUPP)
 	return box // container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
 }
 
 /*
-	Форма запускается первой:		// или с формы по кнопке
 	- считать УПП из БУ (вывод ошибки)
 	- инициализировать переменные для иниц. ИПК и отрисовки формы
 	- иниц. ИПК (переиниц.)
@@ -1099,105 +1107,68 @@ func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
 
-	w := fyne.CurrentApp().NewWindow("Установка условно постоянных признаков") // CurrentApp!
-	w.Resize(fyne.NewSize(800, 600))
+	w := fyne.CurrentApp().NewWindow("Установка условно постоянных признаков " + gBU.Name) // CurrentApp!
+	w.Resize(fyne.NewSize(800, 600))                                                       // добавить имя блока по возможности
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	var boxScrollLayoutUPP *fyne.Container
-	var selectDevice *widget.Select
+	// + чтение упп с бу
+	err := readUPPfromBU()
+	if err == nil {
+		statusLabel.SetText("УПП считаны с блока")
+	} else {
+		statusLabel.SetText("Ошибка получения УПП с блока по шине CAN")
+	}
 
-	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
-		gBU.Variant = OptionsBU(selectDevice.SelectedIndex()) // gDeviceChoice[BU3PV]
-		gBU.Name = s                                          // BU3PV
-		// readParamFromTOML()
-		// err := readUPPfromBU()
-		// if err != nil {
-		// 	gForm.Status.Set(err.Error())
-		// }
-		refreshForm()
-		// всю отрисовку сюда?
-		var temp []int
-		for n := range gUPP {
-			temp = append(temp, n)
+	var temp []int
+	for n := range gUPP {
+		temp = append(temp, n)
+	}
+	sort.Ints(temp)
+
+	b := container.NewVBox()
+	for _, number := range temp {
+		upp := gUPP[number]
+
+		nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", number, upp.Name))
+		nameLabel.TextStyle.Monospace = true
+
+		paramEntry[number] = widget.NewEntry()
+		paramEntry[number].TextStyle.Monospace = true
+		paramEntry[number].SetText(upp.Value)
+		paramEntry[number].OnChanged = func(str string) {
+			str = strings.ReplaceAll(str, ",", ".")
+			paramEntry[upp.Mod].SetText(str) // нельзя number!
+			statusLabel.SetText(upp.Hint)
 		}
-		sort.Ints(temp)
 
-		b := container.NewVBox()
-		for _, number := range temp { // gUPP это переменная с которой работает программа, не мешать ее со считанными todo
-			upp := gUPP[number] // старое значение label! не переключается по смене блока
-
-			nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", number, upp.Name))
-			nameLabel.TextStyle.Monospace = true
-			nameLabel.Refresh()
-
-			paramEntry[number] = widget.NewEntry()
-			paramEntry[number].TextStyle.Monospace = true
-			paramEntry[number].SetText(upp.Value)
-			paramEntry[number].OnChanged = func(str string) {
-				str = strings.ReplaceAll(str, ",", ".")
-				paramEntry[upp.Mod].SetText(str) // нельзя number!
-				statusLabel.SetText(upp.Hint)
-			}
-
-			line := container.NewGridWithColumns(2, nameLabel, paramEntry[number])
-			b.Add(line)
-			b.Refresh()
-		}
-		boxScrollUPP := container.NewVScroll(b) // + крутилку
-		boxScrollLayoutUPP = container.New(layout.NewGridWrapLayout(fyne.NewSize(770, 550)), boxScrollUPP)
-		boxScrollLayoutUPP.Refresh()
-	})
-	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
-
-	// readParamFromTOML()
-
-	// + чтение с бу при старте показывать их
-	// var temp []int
-	// for n := range gUPP {
-	// 	temp = append(temp, n)
-	// }
-	// sort.Ints(temp)
-
-	// b := container.NewVBox()
-	// for _, number := range temp { // gUPP это переменная с которой работает программа, не мешать ее со считанными todo
-	// 	upp := gUPP[number]
-
-	// 	nameLabel := widget.NewLabel(fmt.Sprintf("%-4d %s", number, upp.Name))
-	// 	nameLabel.TextStyle.Monospace = true
-
-	// 	paramEntry[number] = widget.NewEntry()
-	// 	paramEntry[number].TextStyle.Monospace = true
-	// 	paramEntry[number].SetText(upp.Value)
-	// 	paramEntry[number].OnChanged = func(str string) {
-	// 		str = strings.ReplaceAll(str, ",", ".")
-	// 		paramEntry[upp.Mod].SetText(str) // нельзя number!
-	// 		statusLabel.SetText(upp.Hint)
-	// 	}
-
-	// 	line := container.NewGridWithColumns(2, nameLabel, paramEntry[number])
-	// 	b.Add(line)
-	// }
-	// boxScrollUPP := container.NewVScroll(b)                                                             // + крутилку
-	// boxScrollLayoutUPP := container.New(layout.NewGridWrapLayout(fyne.NewSize(770, 550)), boxScrollUPP) // чтобы не расползались, нужно место для кнопок
+		line := container.NewGridWithColumns(2, nameLabel, paramEntry[number])
+		b.Add(line)
+	}
+	boxScrollUPP := container.NewVScroll(b)                                                             // + крутилку
+	boxScrollLayoutUPP := container.New(layout.NewGridWrapLayout(fyne.NewSize(770, 550)), boxScrollUPP) // чтобы не расползались, нужно место для кнопок
 
 	// считать УПП записанные в БУ
 	readBUButton := widget.NewButton("УПП БУ", func() {
 		err := readUPPfromBU()
+		if err != nil {
+			statusLabel.SetText("Ошибка получения УПП с блока по шине CAN")
+		} else {
+			statusLabel.SetText("УПП считаны с блока")
+		}
+
 		for number, upp := range gUPP {
 			paramEntry[number].SetText(upp.Value)
 		}
-		if err == nil {
-			statusLabel.SetText("УПП считаны успешно")
-		} else {
-			statusLabel.SetText(err.Error())
-		}
+
 	})
 
 	// записать то что на форме в БУ
 	writeButton := widget.NewButton("Записать", func() {
 		// проверить все введенные данные на соответствие границам
-		for number, upp := range gUPP {
+		mapupp := make(map[int]DataUPP)
+		mapupp = gUPP
+		for number, upp := range mapupp {
 			upp.Value = paramEntry[number].Text
 			if err := upp.checkValueUPP(); err != nil {
 				statusLabel.SetText(err.Error())
@@ -1210,29 +1181,41 @@ func showFormUPP() {
 			return
 		}
 
-		// gBU.SetServiceMode() todo DEBUG
-
 		// записать всё в gUPP
-		for number, upp := range gUPP {
-			upp.Value = paramEntry[number].Text
-			gUPP[number] = upp
-		}
-		// записать полученное в БУ
+		gUPP = mapupp
+
+		// gBU.SetServiceMode() todo DEBUG лучше просто переходить в режим, не пытаясь отслеживать в каком режиме был блок
+
+		// записать в БУ
 		if err := writeUPPtoBU(); err != nil {
 			statusLabel.SetText(err.Error())
-		} else {
-			writeParamToTOML()
-			statusLabel.SetText("УПП записаны успешно")
-			refreshDataBU() // todo легко забыть изменить
-			refreshForm()
+			return
 		}
+		// сделать чтение упп из бу и сравнить todo
+		// readUPPfromBU()
+
+		writeParamToTOML()
+		statusLabel.SetText("УПП записаны успешно")
+		refreshDataBU() // todo легко забыть изменить
+		refreshForm()
 
 		// gBU.SetOperateMode() todo DEBUG
 	})
 
-	readTomlButton := widget.NewButton("Читать из файла", nil)
+	readTomlButton := widget.NewButton("Сохранённые УПП", func() {
+		mapupp, err := readParamFromTOML() // никуда не сохраняются, только показать на форме
+		if err != nil {
+			statusLabel.SetText("Ошибка чтения УПП из файла")
+		} else {
+			statusLabel.SetText("УПП считаны из файла")
+		}
 
-	boxButtons := container.NewHBox(selectDevice, readBUButton, readTomlButton, layout.NewSpacer(), writeButton)
+		for number, upp := range mapupp {
+			paramEntry[number].SetText(upp.Value)
+		}
+	})
+
+	boxButtons := container.NewHBox(readBUButton, readTomlButton, layout.NewSpacer(), writeButton)
 	boxBottom := container.NewVBox(statusLabel, boxButtons)
 	boxButtonsLayout := container.New(layout.NewGridWrapLayout(fyne.NewSize(800, 80)), boxBottom) // чтобы не расползались кнопки при растягивании бокса
 
