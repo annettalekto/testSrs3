@@ -153,9 +153,9 @@ func (bu DescriptionBU) Turt(on bool) {
 
 // SetServiceMode перейти в режим обслуживания
 func (bu DescriptionBU) SetServiceMode() {
-	if bu.turt && bu.power {
-		return // режим установлен на главной форме
-	}
+	// if bu.turt && bu.power {
+	// 	return // режим установлен на главной форме
+	// }
 	sp.SetSpeed(0, 0)
 	sp.SetAcceleration(0, 0)
 	time.Sleep(2 * time.Second)
@@ -169,9 +169,9 @@ func (bu DescriptionBU) SetServiceMode() {
 
 // SetOperateMode рабочий режим
 func (bu DescriptionBU) SetOperateMode() {
-	if !bu.turt && bu.power {
-		return // режим установлен
-	}
+	// if !bu.turt && bu.power {
+	// 	return // режим установлен
+	// }
 	bu.Power(false)
 	bu.Turt(false)
 	time.Sleep(time.Second)

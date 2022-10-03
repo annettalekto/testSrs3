@@ -1106,9 +1106,12 @@ func top() fyne.CanvasObject {
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
+	managePower := widget.NewCheck("Управлять питанием", func(ok bool) {
+
+	})
 
 	w := fyne.CurrentApp().NewWindow("Установка условно постоянных признаков " + gBU.Name) // CurrentApp!
-	w.Resize(fyne.NewSize(800, 600))                                                       // добавить имя блока по возможности
+	w.Resize(fyne.NewSize(800, 600))
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
@@ -1166,14 +1169,16 @@ func showFormUPP() {
 	// записать то что на форме в БУ
 	writeButton := widget.NewButton("Записать", func() {
 		// проверить все введенные данные на соответствие границам
-		mapupp := make(map[int]DataUPP)
-		mapupp = gUPP
-		for number, upp := range mapupp {
+		tempupp := make(map[int]DataUPP)
+		tempupp = gUPP
+		for number, upp := range tempupp {
 			upp.Value = paramEntry[number].Text
 			if err := upp.checkValueUPP(); err != nil {
 				statusLabel.SetText(err.Error())
 				return
 			}
+			tempupp[number] = upp
+
 		}
 		// дополнительные проверки
 		if !checkUPP() {
@@ -1182,9 +1187,11 @@ func showFormUPP() {
 		}
 
 		// записать всё в gUPP
-		gUPP = mapupp
+		gUPP = tempupp
 
-		// gBU.SetServiceMode() todo DEBUG лучше просто переходить в режим, не пытаясь отслеживать в каком режиме был блок
+		if managePower.Checked == true {
+			gBU.SetServiceMode() // todo DEBUG лучше просто переходить в режим, не пытаясь отслеживать в каком режиме был блок
+		}
 
 		// записать в БУ
 		if err := writeUPPtoBU(); err != nil {
@@ -1193,29 +1200,35 @@ func showFormUPP() {
 		}
 		// сделать чтение упп из бу и сравнить todo
 		// readUPPfromBU()
+		// if gUPP != tempupp {
+		// 	statusLabel.SetText("error")
+		// }
+		time.Sleep(5 * time.Second)
 
 		writeParamToTOML()
 		statusLabel.SetText("УПП записаны успешно")
 		refreshDataBU() // todo легко забыть изменить
 		refreshForm()
 
-		// gBU.SetOperateMode() todo DEBUG
+		if managePower.Checked == true {
+			gBU.SetOperateMode() // todo DEBUG
+		}
 	})
 
 	readTomlButton := widget.NewButton("Сохранённые УПП", func() {
-		mapupp, err := readParamFromTOML() // никуда не сохраняются, только показать на форме
+		tomlupp, err := readParamFromTOML() // никуда не сохраняются, только показать на форме
 		if err != nil {
 			statusLabel.SetText("Ошибка чтения УПП из файла")
 		} else {
 			statusLabel.SetText("УПП считаны из файла")
 		}
 
-		for number, upp := range mapupp {
+		for number, upp := range tomlupp {
 			paramEntry[number].SetText(upp.Value)
 		}
 	})
 
-	boxButtons := container.NewHBox(readBUButton, readTomlButton, layout.NewSpacer(), writeButton)
+	boxButtons := container.NewHBox(readBUButton, readTomlButton, layout.NewSpacer(), managePower, writeButton)
 	boxBottom := container.NewVBox(statusLabel, boxButtons)
 	boxButtonsLayout := container.New(layout.NewGridWrapLayout(fyne.NewSize(800, 80)), boxBottom) // чтобы не расползались кнопки при растягивании бокса
 
