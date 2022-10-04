@@ -479,6 +479,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entrySpeed1.Entry.OnSubmitted = func(str string) { // todo если пусто устанавливать ноль?
+		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gForm.Status.Set("Ошибка установки скорости")
@@ -508,6 +509,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entrySpeed2.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gForm.Status.Set("Ошибка установки скорости")
@@ -541,6 +543,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entryAccel1.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
 			gForm.Status.Set("Ошибка установки ускорения")
@@ -565,6 +568,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entryAccel2.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
 			gForm.Status.Set("Ошибка установки ускорения")
@@ -742,6 +746,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entryPress1.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if err = channel1.Set(press1); err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
 			gForm.Status.Set("Ошибка установки давления 1")
@@ -766,6 +771,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entryPress2.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if err = channel2.Set(press2); err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
 			gForm.Status.Set("Ошибка установки давления 2")
@@ -790,6 +796,7 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entryPress3.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if err = channel3.Set(press3); err != nil {
 			fmt.Printf("Ошибка установки давления 3\n")
 			return
@@ -1106,16 +1113,14 @@ func top() fyne.CanvasObject {
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
-	managePower := widget.NewCheck("Управлять питанием", func(ok bool) {
-
-	})
+	managePower := widget.NewCheck("Управлять питанием", nil)
 
 	w := fyne.CurrentApp().NewWindow("Установка условно постоянных признаков " + gBU.Name) // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	// + чтение упп с бу
+	// чтение упп с бу
 	err := readUPPfromBU()
 	if err == nil {
 		statusLabel.SetText("УПП считаны с блока")
@@ -1180,20 +1185,18 @@ func showFormUPP() {
 			tempupp[number] = upp
 
 		}
-		// дополнительные проверки
+		// дополнительные проверки todo
 		if !checkUPP() {
 			statusLabel.SetText("")
 			return
 		}
 
-		// записать всё в gUPP
+		// записать в БУ
 		gUPP = tempupp
-
 		if managePower.Checked == true {
-			gBU.SetServiceMode() // todo DEBUG лучше просто переходить в режим, не пытаясь отслеживать в каком режиме был блок
+			gBU.SetServiceMode()
 		}
 
-		// записать в БУ
 		if err := writeUPPtoBU(); err != nil {
 			statusLabel.SetText(err.Error())
 			return
@@ -1211,7 +1214,7 @@ func showFormUPP() {
 		refreshForm()
 
 		if managePower.Checked == true {
-			gBU.SetOperateMode() // todo DEBUG
+			gBU.SetOperateMode()
 		}
 	})
 

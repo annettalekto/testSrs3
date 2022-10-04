@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/amdf/ipk"
@@ -135,6 +136,8 @@ func InitFreqIpkChannel() (err error) {
 				// fmt.Printf("4SP ")
 			}
 		}()
+	} else {
+		fmt.Printf("InitFreqIpkChannel(): %e", err)
 	}
 	return
 }
