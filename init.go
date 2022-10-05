@@ -56,7 +56,7 @@ func initDataBU(variantBU OptionsBU) (err error) {
 
 	mapupp, err := readParamFromTOML() // читаем имена признаков БУ, подсказки, предустановленные значения
 	gUPP = mapupp
-	readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
+	err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
 
 	return
 }

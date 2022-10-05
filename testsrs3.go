@@ -45,7 +45,7 @@ func main() {
 	can25.Run()
 	defer can25.Stop()
 
-	initDataBU(BU3PV)
+	err = initDataBU(BU3PV)
 
 	err = initIPK()
 	if err != nil {
@@ -231,7 +231,7 @@ var mu sync.Mutex
 var gDataCAN = make(map[uint32][8]byte)
 var gBuErrors []int
 
-func getDataCAN() map[uint32][8]byte {
+func getDataCAN() map[uint32][8]byte { // переименовать todo
 	mapDataCAN := make(map[uint32][8]byte)
 
 	mu.Lock()
@@ -302,44 +302,139 @@ func getListCAN() fyne.CanvasObject {
 			data = append(data, fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04")))
 			data = append(data, " ")
 
-			data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 (км/ч):", byteToSpeed(mapDataCAN[idSpeed1])))
-			data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 2 (км/ч):", byteToSpeed(mapDataCAN[idSpeed2])))
-			tm, tc, gr := byteToPressure(mapDataCAN[idPressure])
-			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm))
-			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc))
-			data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr))
-			u := byteDistance(mapDataCAN[idDistance])
-			data = append(data, fmt.Sprintf("%-22s %d", "Дистанция (м):", u)) // число на 22
-			_, str := byteToALS(mapDataCAN[idALS])
-			data = append(data, " ")
+			if bytes, ok := mapDataCAN[idSpeed1]; ok {
+				data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 каб.(км/ч):", byteToSpeed(bytes)))
+			} else {
+				data = append(data, fmt.Sprintf("%-22s —", "Скорость 1 каб.(км/ч):"))
+			}
+			if bytes, ok := mapDataCAN[idSpeed2]; ok {
+				data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 2 каб.(км/ч):", byteToSpeed(bytes)))
+			} else {
+				data = append(data, fmt.Sprintf("%-22s —", "Скорость 2 каб.(км/ч):"))
+			}
 
-			data = append(data, fmt.Sprintf("%-16s %s", "АЛС:", str)) // текст на 16
-			_, _, _, str = byteToCodeIF(mapDataCAN[idCodeIF])
-			data = append(data, fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str))
-			canmsg := mapDataCAN[idBin]
-			if (canmsg[1] & 0x01) == 0x01 {
-				str = "установлено"
+			if bytes, ok := mapDataCAN[idPressure]; ok {
+				tm, tc, gr := byteToPressure(bytes)
+				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm))
+				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc))
+				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr))
 			} else {
-				str = "сброшено"
+				data = append(data, fmt.Sprintf("%-22s —", "Давление ТМ (кг/см²):"))
+				data = append(data, fmt.Sprintf("%-22s —", "Давление ТС (кг/см²):"))
+				data = append(data, fmt.Sprintf("%-22s —", "Давление ГР (кг/см²):"))
 			}
-			data = append(data, fmt.Sprintf("%-16s %s", "Движение вперёд:", str))
-			if (canmsg[1] & 0x02) == 0x02 {
-				str = "установлено"
-			} else {
-				str = "сброшено"
-			}
-			data = append(data, fmt.Sprintf("%-16s %s", "Движение назад:", str))
-			if (canmsg[1] & 0x10) == 0x10 {
-				str = "установлен"
-			} else {
-				str = "сброшен"
-			}
-			data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str))
 
-			str = byteToDigitalIndicator(mapDataCAN[idDigitalInd])
-			data = append(data, fmt.Sprintf("%-16s %s", "Осн. инд.:", str))
-			str = byteToAddIndicator(mapDataCAN[idAddInd])
-			data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
+			if bytes, ok := mapDataCAN[idDistance]; ok {
+				u := byteDistance(bytes)
+				data = append(data, fmt.Sprintf("%-22s %d", "Дистанция (м):", u)) // число на 22
+			} else {
+				data = append(data, fmt.Sprintf("%-22s —", "Дистанция (м):"))
+			}
+
+			data = append(data, " ") // отступ
+
+			if bytes, ok := mapDataCAN[idALS]; ok {
+				_, str := byteToALS(bytes)
+				data = append(data, fmt.Sprintf("%-16s %s", "АЛС:", str)) // текст на 16
+				if (bytes[0] & 0x40) == 0x40 {
+					str = "1"
+				} else {
+					str = "0"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Kлюч ЭПК 1 каб:", str))
+				if (bytes[0] & 0x80) == 0x80 {
+					str = "1"
+				} else {
+					str = "0"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Kлюч ЭПК 2 каб:", str))
+				if (bytes[3] & 0x20) == 0x20 {
+					str = "2"
+				} else {
+					str = "1"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Активна каб.:", str))
+				if (bytes[5] & 0x20) == 0x20 {
+					str = "1"
+				} else {
+					str = "0"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Cостояние ЭПК:", str))
+				if (bytes[6] & 0x20) == 0x20 {
+					str = "1"
+				} else {
+					str = "0"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Активность САУТ:", str))
+			} else {
+				data = append(data, fmt.Sprintf("%-16s —", "АЛС:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Kлюч ЭПК 1 каб:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Kлюч ЭПК 2 каб:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Активна каб.:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Cостояние ЭПК:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Активность САУТ:"))
+			}
+
+			if bytes, ok := mapDataCAN[idCodeIF]; ok {
+				_, _, _, str := byteToCodeIF(bytes)
+				data = append(data, fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str))
+			} else {
+				data = append(data, fmt.Sprintf("%-16s —", "Сигнал ИФ:"))
+			}
+
+			if bytes, ok := mapDataCAN[idBin]; ok {
+				str := ""
+				if (bytes[1] & 0x01) == 0x01 {
+					str = "установлено"
+				} else {
+					str = "сброшено"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Движение вперёд:", str))
+				if (bytes[1] & 0x02) == 0x02 {
+					str = "установлено"
+				} else {
+					str = "сброшено"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Движение назад:", str))
+				if (bytes[1] & 0x10) == 0x10 {
+					str = "установлен"
+				} else {
+					str = "сброшен"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str))
+				if (bytes[2] & 0x08) == 0x08 {
+					str = "1"
+				} else {
+					str = "0"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 1 каб.:", str)) // разобщительный кран ЭПК 1 каб
+				if (bytes[2] & 0x10) == 0x10 {
+					str = "1"
+				} else {
+					str = "0"
+				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 2 каб.:", str))
+			} else {
+				data = append(data, fmt.Sprintf("%-16s —", "Движение вперёд:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Движение назад:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Сигнал Тяга:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 1 каб.:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 2 каб.:"))
+			}
+
+			if bytes, ok := mapDataCAN[idDigitalInd]; ok {
+				str := byteToDigitalIndicator(bytes)
+				data = append(data, fmt.Sprintf("%-16s %s", "Осн. инд.:", str))
+			} else {
+				data = append(data, fmt.Sprintf("%-16s —", "Осн. инд.:"))
+			}
+
+			if bytes, ok := mapDataCAN[idAddInd]; ok {
+				str := byteToAddIndicator(bytes)
+				data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
+			} else {
+				data = append(data, fmt.Sprintf("%-16s —", "Доп. инд.:"))
+			}
 
 			buErrors := append(gBuErrors)
 			gBuErrors = nil
@@ -359,7 +454,7 @@ func getListCAN() fyne.CanvasObject {
 			}
 
 			list.Refresh()
-			time.Sleep(2 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}()
 
@@ -478,7 +573,7 @@ func speed() fyne.CanvasObject {
 			entrySpeed2.Entry.SetText(str) // и в поле второго канала скорости
 		}
 	}
-	entrySpeed1.Entry.OnSubmitted = func(str string) { // todo если пусто устанавливать ноль?
+	entrySpeed1.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
