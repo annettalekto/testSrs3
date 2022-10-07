@@ -227,23 +227,15 @@ func refreshForm() (err error) {
 //---------------------------------------------------------------------------//
 // 								Данные CAN
 //---------------------------------------------------------------------------//
+
 var mu sync.Mutex
 var gDataCAN = make(map[uint32][8]byte)
 var gBuErrors []int
 
-func getDataCAN() map[uint32][8]byte { // переименовать todo
-	mapDataCAN := make(map[uint32][8]byte)
-
-	mu.Lock()
-	mapDataCAN = gDataCAN
-	mu.Unlock()
-
-	return mapDataCAN
-}
-
 func safeError(data [8]byte) {
 	var code int
 
+	mu.Lock()
 	if data[0] == 1 { // код ошибки установлен
 		code = (int(data[2]) << 8) | int(data[1]) // todo проверить на диапазон?
 	}
@@ -253,6 +245,17 @@ func safeError(data [8]byte) {
 		}
 	}
 	gBuErrors = append(gBuErrors, code)
+	mu.Unlock()
+}
+
+func getDataCAN() map[uint32][8]byte { // переименовать todo
+	mapDataCAN := make(map[uint32][8]byte)
+
+	mu.Lock()
+	mapDataCAN = gDataCAN
+	mu.Unlock()
+
+	return mapDataCAN
 }
 
 func getListCAN() fyne.CanvasObject {
@@ -433,11 +436,14 @@ func getListCAN() fyne.CanvasObject {
 				str := byteToAddIndicator(bytes)
 				data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
 			} else {
-				data = append(data, fmt.Sprintf("%-16s —", "Доп. инд.:"))
+				data = append(data, fmt.Sprintf("%-16s —", "Доп. инд.:")) // todo нет знаков и букв
 			}
 
+			mu.Lock()
 			buErrors := append(gBuErrors)
 			gBuErrors = nil
+			mu.Unlock()
+
 			if len(buErrors) > 0 {
 				data = append(data, " ")
 				data = append(data, "Ошибки:")
