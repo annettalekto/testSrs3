@@ -56,9 +56,23 @@ func initDataBU(variantBU OptionsBU) (err error) {
 
 	mapupp, err := readParamFromTOML() // читаем имена признаков БУ, подсказки, предустановленные значения
 	gUPP = mapupp
-	err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
+	// err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
+	refreshDataBU()
 
 	return
+}
+
+func reloadIPK() {
+
+	// if err := sp.Init(fcs, gBU.NumberTeeth, gBU.BandageDiameter); err != nil {
+	// 	// без запуска потока
+	// 	fmt.Printf("InitFreqIpkChannel(): %e", err)
+	// }
+
+	// if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
+	// 	err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+	// 	return
+	// }
 }
 
 func initIPK() (err error) {

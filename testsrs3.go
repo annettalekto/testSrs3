@@ -43,9 +43,12 @@ func main() {
 		err = errors.New("Ошибка инициализации CAN")
 	}
 	can25.Run()
-	defer can25.Stop()
+	// defer can25.Stop()
 
 	err = initDataBU(BU3PV)
+	if err != nil {
+		fmt.Printf("Данные УПП не получены")
+	}
 
 	err = initIPK()
 	if err != nil {
@@ -53,6 +56,7 @@ func main() {
 		err = errors.New("Ошибка инициализации ИПК")
 	}
 	// defer stopIPK()
+	// requestCAN()
 
 	// Форма
 	a := app.New()
@@ -235,7 +239,7 @@ var gBuErrors []int
 func safeError(data [8]byte) {
 	var code int
 
-	mu.Lock()
+	// mu1.Lock()
 	if data[0] == 1 { // код ошибки установлен
 		code = (int(data[2]) << 8) | int(data[1]) // todo проверить на диапазон?
 	}
@@ -245,7 +249,7 @@ func safeError(data [8]byte) {
 		}
 	}
 	gBuErrors = append(gBuErrors, code)
-	mu.Unlock()
+	// mu1.Unlock()
 }
 
 func getDataCAN() map[uint32][8]byte { // переименовать todo
@@ -295,14 +299,50 @@ func getListCAN() fyne.CanvasObject {
 	// обновление данных
 	go func() {
 		for {
+			// fmt.Println("Подготовка данных CAN")
 			data = nil // todo выводить только то, что есть в CAN? без второй сорости и тд?
-			// mu.Lock()
-			// mapDataCAN = gDataCAN
-			// mu.Unlock()
 			mapDataCAN := getDataCAN()
 
 			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
 			data = append(data, fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04")))
+
+			if bytes, ok := mapDataCAN[idDigitalInd]; ok {
+				str := byteToDigitalIndicator(bytes)
+				data = append(data, fmt.Sprintf("%-16s %s", "Осн. инд.:", str))
+			} else {
+				data = append(data, fmt.Sprintf("%-16s —", "Осн. инд.:"))
+			}
+
+			if bytes, ok := mapDataCAN[idAddInd]; ok {
+				str := byteToAddIndicator(bytes)
+				data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
+			} else {
+				data = append(data, fmt.Sprintf("%-16s —", "Доп. инд.:")) // todo нет знаков и букв
+			}
+
+			// data = append(data, " ")
+
+			if len(gBuErrors) > 0 {
+				// mu1.Lock()
+				buErrors := append(gBuErrors)
+				gBuErrors = nil
+				// mu1.Unlock()
+
+				if len(buErrors) > 0 {
+					// data = append(data, " ")
+					data = append(data, "Ошибки:")
+					// var temp []int
+					// for errorcode := range gBuErrors {
+					// temp = append(temp, int(errorcode))
+					// }
+					sort.Ints(buErrors)
+					for _, x := range buErrors {
+						if x != 0 {
+							data = append(data, fmt.Sprintf("H%d", x))
+						}
+					}
+				}
+			}
 			data = append(data, " ")
 
 			if bytes, ok := mapDataCAN[idSpeed1]; ok {
@@ -425,42 +465,8 @@ func getListCAN() fyne.CanvasObject {
 				data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 2 каб.:"))
 			}
 
-			if bytes, ok := mapDataCAN[idDigitalInd]; ok {
-				str := byteToDigitalIndicator(bytes)
-				data = append(data, fmt.Sprintf("%-16s %s", "Осн. инд.:", str))
-			} else {
-				data = append(data, fmt.Sprintf("%-16s —", "Осн. инд.:"))
-			}
-
-			if bytes, ok := mapDataCAN[idAddInd]; ok {
-				str := byteToAddIndicator(bytes)
-				data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
-			} else {
-				data = append(data, fmt.Sprintf("%-16s —", "Доп. инд.:")) // todo нет знаков и букв
-			}
-
-			mu.Lock()
-			buErrors := append(gBuErrors)
-			gBuErrors = nil
-			mu.Unlock()
-
-			if len(buErrors) > 0 {
-				data = append(data, " ")
-				data = append(data, "Ошибки:")
-				// var temp []int
-				// for errorcode := range gBuErrors {
-				// temp = append(temp, int(errorcode))
-				// }
-				sort.Ints(buErrors)
-				for _, x := range buErrors {
-					if x != 0 {
-						data = append(data, fmt.Sprintf("H%d", x))
-					}
-				}
-			}
-
 			list.Refresh()
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 		}
 	}()
 
@@ -568,6 +574,9 @@ func speed() fyne.CanvasObject {
 	entrySpeed2 := newSpecialEntry("0")
 
 	entrySpeed1.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 1)\n")
@@ -598,6 +607,9 @@ func speed() fyne.CanvasObject {
 	}
 
 	entrySpeed2.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 2)\n")
@@ -632,6 +644,9 @@ func speed() fyne.CanvasObject {
 	entryAccel2 := newSpecialEntry("0.00")
 
 	entryAccel1.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
@@ -657,6 +672,9 @@ func speed() fyne.CanvasObject {
 	}
 
 	entryAccel2.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 2)\n")
@@ -755,6 +773,9 @@ func speed() fyne.CanvasObject {
 	// обработка пути
 	entryMileage := newSpecialEntry("0") //20000
 	entryMileage.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		if strings.Contains(str, ".") {
 			gForm.Status.Set("Ошибка в поле ввода «Дистанция»: введите целое число")
 			return
@@ -836,6 +857,9 @@ func speed() fyne.CanvasObject {
 	// обработка давления
 	entryPress1 := newSpecialEntry("0.0")
 	entryPress1.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		str = strings.ReplaceAll(str, ",", ".")
 		if press1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 1)\n")
@@ -860,6 +884,9 @@ func speed() fyne.CanvasObject {
 
 	entryPress2 := newSpecialEntry("0.0")
 	entryPress2.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		str = strings.ReplaceAll(str, ",", ".")
 		press2, err = strconv.ParseFloat(str, 64)
 		if err != nil {
@@ -885,6 +912,9 @@ func speed() fyne.CanvasObject {
 
 	entryPress3 := newSpecialEntry("0.0")
 	entryPress3.Entry.OnChanged = func(str string) {
+		if str == "" {
+			return
+		}
 		str = strings.ReplaceAll(str, ",", ".")
 		press3, err = strconv.ParseFloat(str, 64)
 		if err != nil {
