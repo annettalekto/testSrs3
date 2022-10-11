@@ -280,8 +280,10 @@ func getListCAN() fyne.CanvasObject {
 			return temp
 			// return widget.NewLabel("template")
 		},
-		func(id widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(data[id])
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			if i < len(data) {
+				o.(*widget.Label).SetText(data[i])
+			}
 		})
 
 	list.OnSelected = func(id widget.ListItemID) {
@@ -1251,13 +1253,14 @@ func showFormUPP() {
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	// чтение упп с бу
-	err := readUPPfromBU()
-	if err == nil {
-		statusLabel.SetText("УПП считаны с блока")
-	} else {
-		statusLabel.SetText("Ошибка получения УПП с блока по шине CAN")
-	}
+	// err := readUPPfromBU()
+	// if err == nil {
+	// 	statusLabel.SetText("УПП считаны с блока")
+	// } else {
+	// 	statusLabel.SetText("Ошибка получения УПП с блока по шине CAN")
+	// }
+
+	statusLabel.SetText("УПП считаны из файла")
 
 	var temp []int
 	for n := range gUPP {
@@ -1299,7 +1302,6 @@ func showFormUPP() {
 		for number, upp := range gUPP {
 			paramEntry[number].SetText(upp.Value)
 		}
-
 	})
 
 	// записать то что на форме в БУ
