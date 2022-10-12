@@ -118,6 +118,13 @@ func main() {
 
 	// showFormUPP()
 
+	// пробуем получить данные с блока
+	if err := readUPPfromBU(); err == nil {
+		gForm.Status.Set("УПП получены с блока")
+	} else {
+		gForm.Status.Set(err.Error())
+	}
+
 	w.SetContent(box)
 	w.ShowAndRun()
 }
@@ -195,14 +202,7 @@ type DescriptionForm struct {
 // обновить данные на форме если было изменено значение УПП или выбран новый блок
 func refreshForm() (err error) {
 
-	// mapupp, err := readParamFromTOML() // читаем для текущего БУ имена признаков, подсказки, предустановленные значения
-	// gUPP = mapupp
-	// refreshDataBU()
-	// readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
-
-	// инициализация ИПК с новыми параметрами:
-	// остановить все потоки и закрыть все что можно? todo
-	// initIPK()
+	refreshDataIPK()
 
 	gForm.RelayY.Text = fmt.Sprintf("%d", gBU.RelayY)
 	gForm.RelayRY.Text = fmt.Sprintf("%d", gBU.RelayRY)
@@ -306,20 +306,20 @@ func getListCAN() fyne.CanvasObject {
 			mapDataCAN := getDataCAN()
 
 			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
-			data = append(data, fmt.Sprintf("Время БУ: %s", t.Format("02.01.2006 15:04")))
+			data = append(data, fmt.Sprintf("Время БУ: \t%s", t.Format("02.01.2006 15:04")))
 
 			if bytes, ok := mapDataCAN[idDigitalInd]; ok {
 				str := byteToDigitalIndicator(bytes)
-				data = append(data, fmt.Sprintf("%-16s %s", "Осн. инд.:", str))
+				data = append(data, fmt.Sprintf("%s \t%s", "Осн. инд.:", str))
 			} else {
-				data = append(data, fmt.Sprintf("%-16s —", "Осн. инд.:"))
+				data = append(data, fmt.Sprintf("%s —", "Осн. инд.:"))
 			}
 
 			if bytes, ok := mapDataCAN[idAddInd]; ok {
 				str := byteToAddIndicator(bytes)
-				data = append(data, fmt.Sprintf("%-16s %s", "Доп. инд.:", str))
+				data = append(data, fmt.Sprintf("%s \t%s", "Доп. инд.:", str))
 			} else {
-				data = append(data, fmt.Sprintf("%-16s —", "Доп. инд.:")) // todo нет знаков и букв
+				data = append(data, fmt.Sprintf("%s —", "Доп. инд.:")) // todo нет знаков и букв
 			}
 
 			// data = append(data, " ")
@@ -896,6 +896,7 @@ func speed() fyne.CanvasObject {
 			gForm.Status.Set("Ошибка в поле ввода «Давление 2»")
 			return
 		}
+		limit2 = gBU.PressureLimit
 		if press2 > limit2 {
 			gForm.Status.Set(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2))
 		}
@@ -1238,11 +1239,6 @@ func top() fyne.CanvasObject {
 	return box // container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
 }
 
-/*
-	- считать УПП из БУ (вывод ошибки)
-	- инициализировать переменные для иниц. ИПК и отрисовки формы
-	- иниц. ИПК (переиниц.)
-*/
 func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
@@ -1253,14 +1249,12 @@ func showFormUPP() {
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	// err := readUPPfromBU()
-	// if err == nil {
-	// 	statusLabel.SetText("УПП считаны с блока")
-	// } else {
-	// 	statusLabel.SetText("Ошибка получения УПП с блока по шине CAN")
-	// }
-
-	statusLabel.SetText("УПП считаны из файла")
+	if err := readUPPfromBU(); err == nil {
+		statusLabel.SetText("УПП считаны с блока")
+	} else {
+		statusLabel.SetText(err.Error())
+	}
+	// statusLabel.SetText("УПП считаны из файла")
 
 	var temp []int
 	for n := range gUPP {
@@ -1334,6 +1328,8 @@ func showFormUPP() {
 			statusLabel.SetText(err.Error())
 			return
 		}
+		statusLabel.SetText("УПП записаны успешно")
+
 		// сделать чтение упп из бу и сравнить todo
 		// readUPPfromBU()
 		// if gUPP != tempupp {
@@ -1342,7 +1338,6 @@ func showFormUPP() {
 		time.Sleep(5 * time.Second)
 
 		writeParamToTOML()
-		statusLabel.SetText("УПП записаны успешно")
 		refreshDataBU() // todo легко забыть изменить
 		refreshForm()
 

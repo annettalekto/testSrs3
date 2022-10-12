@@ -20,6 +20,7 @@ var fcs *ipk.FreqDevice
 var channel1 ipk.PressureOutput // sensorTM Переменная для задания давления ТM в кгс/см² (канал 1)
 var channel2 ipk.PressureOutput // sensorTC Переменная для задания давления ТЦ в кгс/см² (канал 2)
 var channel3 ipk.PressureOutput // sensorGR Переменная для задания давления GR в кгс/см²
+var channelN6 *ipk.DAC
 
 var gBU DescriptionBU
 var gDeviceChoice = []string{"БУ-3П", "БУ-3ПА", "БУ-3ПВ", "БУ-4"} // +kpd +CH? todo
@@ -62,17 +63,18 @@ func initDataBU(variantBU OptionsBU) (err error) {
 	return
 }
 
-func reloadIPK() {
+func refreshDataIPK() (err error) {
 
-	// if err := sp.Init(fcs, gBU.NumberTeeth, gBU.BandageDiameter); err != nil {
-	// 	// без запуска потока
-	// 	fmt.Printf("InitFreqIpkChannel(): %e", err)
-	// }
+	if err = sp.Init(fcs, gBU.NumberTeeth, gBU.BandageDiameter); err != nil {
+		// без запуска потока
+		fmt.Printf("InitFreqIpkChannel(): %e", err)
+		return
+	}
 
-	// if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
-	// 	err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
-	// 	return
-	// }
+	if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+	}
+	return
 }
 
 func initIPK() (err error) {
@@ -110,7 +112,7 @@ func initIPK() (err error) {
 	}
 
 	// открываем ЦАП 6
-	channelN6 := new(ipk.DAC)
+	channelN6 = new(ipk.DAC)
 	if channelN6.Init(fas, ipk.DAC6); err != nil {
 		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
 		return

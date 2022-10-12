@@ -106,6 +106,7 @@ func readUPPfromBU() (err error) {
 		gUPP[number] = value
 	}
 	refreshDataBU()
+	refreshForm()
 
 	return
 }
