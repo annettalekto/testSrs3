@@ -178,7 +178,8 @@ func setIntVal(mod int, s string) (err error) {
 
 // перевести байт полученный по САN с индикатора к строке (букве)
 func byteIndToStr(b byte) (s string) {
-	digits := map[byte]string{0xFF: " ", 0x82: "0", 0xCF: "1", 0x91: "2", 0x85: "3", 0xCC: "4", 0xA4: "5", 0xA0: "6", 0x8F: "7", 0x80: "8", 0x84: "9",
+	digits := map[byte]string{0xFF: " ", 0xFD: "-", 0xC8: "H",
+		0x82: "0", 0xCF: "1", 0x91: "2", 0x85: "3", 0xCC: "4", 0xA4: "5", 0xA0: "6", 0x8F: "7", 0x80: "8", 0x84: "9",
 		0x02: "0.", 0x4F: "1.", 0x11: "2.", 0x05: "3.", 0x4C: "4.", 0x24: "5.", 0x20: "6.", 0x0F: "7.", 0x00: "8.", 0x04: "9."}
 
 	s = digits[b]
@@ -186,7 +187,8 @@ func byteIndToStr(b byte) (s string) {
 }
 
 func strToByteInd(s string) (b byte) {
-	bytes := map[string]byte{" ": 0xFF, "0": 0x82, "1": 0xCF, "2": 0x91, "3": 0x85, "4": 0xCC, "5": 0xA4, "6": 0xA0, "7": 0x8F, "8": 0x80, "9": 0x84,
+	bytes := map[string]byte{" ": 0xFF, "-": 0xFD, "H": 0xC8,
+		"0": 0x82, "1": 0xCF, "2": 0x91, "3": 0x85, "4": 0xCC, "5": 0xA4, "6": 0xA0, "7": 0x8F, "8": 0x80, "9": 0x84,
 		"0.": 0x02, "1.": 0x4F, "2.": 0x11, "3.": 0x05, "4.": 0x4C, "5.": 0x24, "6.": 0x20, "7.": 0x0F, "8.": 0x00, "9.": 0x04}
 	b = bytes[s]
 	return
@@ -224,15 +226,7 @@ func byteToDigitalIndicator(data [8]byte) (str string) {
 func byteToAddIndicator(data [8]byte) (str string) {
 
 	if data[0] == 0x02 { // модификатор
-
 		str = byteIndToStr(data[1]) + byteIndToStr(data[2]) + byteIndToStr(data[3]) + byteIndToStr(data[4])
-		// if f, err = strconv.ParseFloat(strings.TrimSpace(s), 64); err == nil { // если значение на экране мигает, мы получаем пробелы всесто числа, тут еrr будет не nil
-		// 	if msg.Data[1] == 0xFD { // минус, например, отрицательное ускорение
-		// 		s = "-" + s
-		// 		f *= -1
-		// 	}
-		// 	break
-		// }
 	}
 
 	return

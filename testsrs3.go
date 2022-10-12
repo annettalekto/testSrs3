@@ -306,20 +306,20 @@ func getListCAN() fyne.CanvasObject {
 			mapDataCAN := getDataCAN()
 
 			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
-			data = append(data, fmt.Sprintf("Время БУ: \t%s", t.Format("02.01.2006 15:04")))
+			data = append(data, fmt.Sprintf("Время БУ:  %s", t.Format("02.01.2006 15:04")))
 
 			if bytes, ok := mapDataCAN[idDigitalInd]; ok {
 				str := byteToDigitalIndicator(bytes)
-				data = append(data, fmt.Sprintf("%s \t%s", "Осн. инд.:", str))
+				data = append(data, fmt.Sprintf("%s %s", "Осн. инд.:", str))
 			} else {
 				data = append(data, fmt.Sprintf("%s —", "Осн. инд.:"))
 			}
 
 			if bytes, ok := mapDataCAN[idAddInd]; ok {
 				str := byteToAddIndicator(bytes)
-				data = append(data, fmt.Sprintf("%s \t%s", "Доп. инд.:", str))
+				data = append(data, fmt.Sprintf("%s %s", "Доп. инд.:", str))
 			} else {
-				data = append(data, fmt.Sprintf("%s —", "Доп. инд.:")) // todo нет знаков и букв
+				data = append(data, fmt.Sprintf("%s —", "Доп. инд.:"))
 			}
 
 			// data = append(data, " ")
@@ -566,8 +566,9 @@ func speed() fyne.CanvasObject {
 	// ------------------------- box 1 ----------------------------
 
 	separately := binding.NewBool() // cовместное-раздельное управление
-	direction1 := uint8(ipk.MotionOnward)
-	direction2 := uint8(ipk.MotionOnward)
+	direction := uint8(ipk.MotionOnward)
+	// direction1 := uint8(ipk.MotionOnward)
+	// direction2 := uint8(ipk.MotionOnward)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
 	dummy := widget.NewLabel("")
 
@@ -703,9 +704,25 @@ func speed() fyne.CanvasObject {
 
 	// обработка направления
 	directionChoice := []string{"Вперёд", "Назад"}
-	var selectDirection1, selectDirection2 *widget.Select
+	// var selectDirection1, selectDirection2 *widget.Select
 
-	selectDirection1 = widget.NewSelect(directionChoice, func(s string) {
+	radioDirection := widget.NewRadioGroup(directionChoice, func(s string) {
+		if s == "Вперёд" {
+			direction = ipk.MotionOnward
+		} else {
+			direction = ipk.MotionBackwards
+		}
+		if err = sp.SetMotion(direction); err != nil { // todo должно быть два напревления
+			gForm.Status.Set("Ошибка установки направления движения")
+			return
+		}
+		fmt.Printf("Направление: %s\n", s)
+		gForm.Status.Set(" ")
+	})
+	radioDirection.Horizontal = true
+	radioDirection.SetSelected("Вперёд")
+
+	/*selectDirection1 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
 		if s == "Вперёд" {
 			direction1 = ipk.MotionOnward
@@ -724,8 +741,8 @@ func speed() fyne.CanvasObject {
 		}
 		fmt.Printf("Направление: %s\n", s)
 		gForm.Status.Set(" ")
-	})
-	selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
+	})*/
+	/*selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
 		sep, _ := separately.Get()
 		if s == "Вперёд" {
 			direction2 = ipk.MotionOnward
@@ -747,7 +764,7 @@ func speed() fyne.CanvasObject {
 	})
 	selectDirection1.SetSelectedIndex(0) //"Вперёд"
 	selectDirection2.SetSelectedIndex(0) //"Вперёд"
-
+	*/
 	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
 	labelParameters := widget.NewLabel("")
@@ -760,10 +777,10 @@ func speed() fyne.CanvasObject {
 		dummy, widget.NewLabel("Канал 1"), widget.NewLabel("Канал 2"),
 		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, entrySpeed2,
 		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, entryAccel2,
-		widget.NewLabel("Направление:"), selectDirection1, selectDirection2,
+		// widget.NewLabel("Направление:"), selectDirection1, selectDirection2,
 	)
 
-	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck, labelParameters)
+	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck, radioDirection, labelParameters)
 
 	// ------------------------- box 2 ----------------------------
 
