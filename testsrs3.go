@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,6 +37,14 @@ var gForm DescriptionForm
 func main() {
 	gForm.Version, gForm.Year = "1.0.0", "2022 г."
 	gForm.ProgramName = "Электронная имитация параметров"
+
+	defer func() {
+		if r := recover(); r != nil {
+			debug.PrintStack()
+			fmt.Println("PANIC!")
+			os.Exit(1)
+		}
+	}()
 
 	// Инит
 	err := can25.Init(0x1F, 0x16)
@@ -289,8 +299,6 @@ func getListCAN() fyne.CanvasObject {
 	list.OnSelected = func(id widget.ListItemID) {
 		if strings.HasPrefix(data[id], "H") {
 			sCodeError := strings.TrimPrefix(data[id], "H")
-			// найти в toml файле, который сначала нужно сделать
-			// описание в строку статуса
 			sErrorDescription := getErrorDescription(sCodeError)
 			gForm.Status.Set(fmt.Sprintf("H%s: %s", sCodeError, sErrorDescription))
 		} else {
@@ -959,7 +967,7 @@ func speed() fyne.CanvasObject {
 
 	box3 := container.NewGridWithColumns(
 		3,
-		widget.NewLabel("Канал 1:"), widget.NewLabel("Канал 2:"), widget.NewLabel("Канал 3:"),
+		widget.NewLabel("Канал 1 (ТМ):"), widget.NewLabel("Канал 2 (ТС):"), widget.NewLabel("Канал 3 (ГР):"),
 		entryPress1, entryPress2, entryPress3,
 	)
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
@@ -979,7 +987,7 @@ func speed() fyne.CanvasObject {
 func outputSignals() fyne.CanvasObject {
 	var err error
 
-	code := []string{"Нет",
+	code := []string{"Ноль", "Единица",
 		"КЖ 1.6",
 		"Ж 1.6",
 		"З 1.6",
@@ -990,8 +998,10 @@ func outputSignals() fyne.CanvasObject {
 	radio := widget.NewRadioGroup(code, func(s string) {
 		fds.SetIF(ipk.IFEnable)
 		switch s {
-		case "Нет":
-			err = fds.SetIF(ipk.IFDisable) // todo эти разобрать
+		case "Ноль":
+			err = fds.SetIF(ipk.IFDisable)
+		case "Единица":
+			err = fds.SetIF(ipk.IFEnable)
 		case "КЖ 1.6":
 			err = fds.SetIF(ipk.IFRedYellow16)
 		case "Ж 1.6":
@@ -1009,7 +1019,7 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Код РЦ: %s (%v)\n", s, err)
 	})
-	radio.SetSelected("Нет")
+	radio.SetSelected("Ноль")
 	// radio.Horizontal = true
 	boxCode := container.NewVBox(getTitle("Коды РЦ:      "), radio)
 
@@ -1246,8 +1256,11 @@ func top() fyne.CanvasObject {
 		// }
 	})
 
-	buttonUPP := widget.NewButton("  УПП  ", func() {
+	var buttonUPP *widget.Button
+	buttonUPP = widget.NewButton("  УПП  ", func() {
+		buttonUPP.Disable()
 		showFormUPP()
+		buttonUPP.Enable()
 	})
 
 	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, checkTurt, layout.NewSpacer(), buttonUPP)

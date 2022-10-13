@@ -77,12 +77,22 @@ func readUPPfromBU() (err error) {
 	const bu3pQueryInfo = 0x5C1
 	var msg candev.Message
 
+	// if nil == can25 {
+	// 	err = fmt.Errorf("%s", "null ptr")
+	// 	return
+	// }
+
 	for number, value := range gUPP {
 		msg.ID = bu3pQueryInfo
 		msg.Len = 1
 		msg.Data[0] = byte(number)
 
-		can25.Send(msg)
+		err = can25.Send(msg)
+		if err != nil {
+			err = errors.New("Ошибка получения УПП с блока по CAN")
+			return
+		}
+
 		msg, err = can25.GetMsgByID(bu3pSysInfo, 2*time.Second)
 		if err != nil {
 			err = errors.New("Не получено значение УПП с блока по CAN")
