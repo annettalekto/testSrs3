@@ -184,6 +184,38 @@ func setIntVal(mod int, s string) (err error) {
 	return
 }
 
+/*
+0C7Н Текущее время и дата. Длина - 7 байт.
+1-й байт: год, биты 15-8;
+2-й байт: год, биты 7-0;
+3-й байт: месяц;
+4-й байт: день;
+5-й байт: время, часы;
+6-й байт: время, минуты;
+7-й байт: время, секунды
+*/
+
+func canGetTimeBU() (tm time.Time, err error) {
+	var msg candev.Message
+
+	msg, err = can25.GetMsgByID(0xC7, 10*time.Second)
+	if err != nil {
+		err = errors.New("canGetTimeBU(): " + err.Error())
+	}
+
+	tm = time.Date(int((uint(msg.Data[0])<<8)|(uint(msg.Data[1]))), //год
+		time.Month(msg.Data[2]),       //месяц
+		int(msg.Data[3]),              //день
+		int(msg.Data[4]),              //час
+		int(msg.Data[5]),              //мин
+		int(msg.Data[6]), 0, time.UTC) //секунды не учитываем
+	fmt.Printf("%d\n", tm.Year())
+	fmt.Printf("%d\n", int((uint(msg.Data[0])<<8)&(uint(msg.Data[1]))))
+	fmt.Printf("%d %d\n", (uint(msg.Data[0])), (uint(msg.Data[1])))
+
+	return
+}
+
 //---------------------------------------- Индикатор ----------------------------------------//
 
 // перевести байт полученный по САN с индикатора к строке (букве)

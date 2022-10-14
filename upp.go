@@ -197,10 +197,14 @@ func refreshDataBU() (err error) {
 	}
 	gBU.NumberTeeth = uint32(ival)
 
-	i = 12 // todo переинициализация этого
-	gBU.PressureLimit, err = strconv.ParseFloat(gUPP[i].Value, 64)
-	if err != nil {
-		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, gUPP[i].Value)
+	if gBU.Variant == BU4 {
+		gBU.PressureLimit = 10
+	} else {
+		i = 12
+		gBU.PressureLimit, err = strconv.ParseFloat(gUPP[i].Value, 64)
+		if err != nil {
+			err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, gUPP[i].Value)
+		}
 	}
 
 	i = 8

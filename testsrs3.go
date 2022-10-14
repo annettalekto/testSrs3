@@ -53,7 +53,7 @@ func main() {
 		err = errors.New("Ошибка инициализации CAN")
 	}
 	can25.Run()
-	// defer can25.Stop()
+	defer can25.Stop()
 
 	err = initDataBU(BU3PV)
 	if err != nil {
