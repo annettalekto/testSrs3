@@ -194,19 +194,38 @@ func getTitle(str string) *widget.Label {
 }
 
 // DescriptionForm то что изменяется от входных значений
+// (при смене уставок в упп нужно менять их на экране или
+// скрыть некоторые элементы при смене типа болка)
 type DescriptionForm struct {
 	Version, Year, ProgramName string
 
-	Status binding.String
+	Status binding.String // строка (внизу) для ошибок, подсказок и др. инфы
 
-	RelayY  *widget.Check
+	RelayY  *widget.Check // уставки скоростей
 	RelayRY *widget.Check
 	RelayU  *widget.Check
 
-	Parameters binding.String
+	Parameters binding.String // параметры имитации скорости (число зубьев и бандаж)
 
-	BoxBUS    *fyne.Container
-	BoxOut50V *fyne.Container
+	BoxBUS    *fyne.Container // сигналы БУС (есть только в 3ПВ)
+	BoxOut50V *fyne.Container // некоторые сигналы 3ПВ
+
+	// Для БУ-4
+	CheckTurt *widget.Check // turt нет, есть режим обслуживания (уст-ся через can)
+}
+
+func changeFormBU4() {
+
+	gForm.CheckTurt.Text = "Режим обслуживания"
+	gForm.CheckTurt.Refresh()
+	if isServiceModeBU4() {
+		gForm.CheckTurt.SetChecked(true)
+	} else {
+		gForm.CheckTurt.SetChecked(false)
+	}
+
+	gForm.BoxBUS.Hide()
+	gForm.BoxOut50V.Hide()
 }
 
 // обновить данные на форме если было изменено значение УПП или выбран новый блок
@@ -222,6 +241,8 @@ func refreshForm() (err error) {
 	gForm.RelayU.Refresh()
 
 	gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
+	gForm.CheckTurt.Text = "TURT"
+	gForm.CheckTurt.Refresh()
 
 	switch gBU.Variant {
 	case BU3P, BU3PA:
@@ -231,9 +252,7 @@ func refreshForm() (err error) {
 		gForm.BoxBUS.Show()
 		gForm.BoxOut50V.Show()
 	case BU4:
-		gForm.BoxBUS.Hide()
-		gForm.BoxOut50V.Hide()
-
+		changeFormBU4()
 	}
 	return
 }
@@ -1235,6 +1254,18 @@ func inputSignals() fyne.CanvasObject {
 
 func top() fyne.CanvasObject {
 
+	gForm.CheckTurt = widget.NewCheck("TURT", func(on bool) { // Режим обслуживания
+		if gBU.Variant == BU4 {
+			ok, msg := setServiceModeBU4()
+			gForm.Status.Set(msg)
+			if !ok {
+				gForm.CheckTurt.SetChecked(false)
+			}
+
+		} else {
+			gBU.Turt(on)
+		}
+	})
 	var selectDevice *widget.Select
 	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
 		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
@@ -1247,25 +1278,17 @@ func top() fyne.CanvasObject {
 	})
 	checkPower.SetChecked(true)
 
-	checkTurt := widget.NewCheck("TURT", func(on bool) { // Режим обслуживания
-		gBU.Turt(on) // todo for debug
-		// if on {
-		// 	gBU.SetServiceMode()
-		// } else {
-		// 	gBU.SetOperateMode()
-		// }
-	})
-
 	var buttonUPP *widget.Button
 	buttonUPP = widget.NewButton("  УПП  ", func() {
+		gForm.Status.Set(" ")
 		buttonUPP.Disable()
 		showFormUPP()
 		buttonUPP.Enable()
 	})
 
-	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, checkTurt, layout.NewSpacer(), buttonUPP)
+	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, gForm.CheckTurt, layout.NewSpacer(), buttonUPP)
 
-	// box := container.NewHBox(selectDevice, checkPower, checkTurt, buttonUPP)
+	// box := container.NewHBox(selectDevice, checkPower, gForm.CheckTurt, buttonUPP)
 	return box // container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
 }
 
@@ -1330,6 +1353,7 @@ func showFormUPP() {
 
 	// записать то что на форме в БУ
 	writeButton := widget.NewButton("Записать", func() {
+
 		// проверить все введенные данные на соответствие границам
 		tempupp := make(map[int]DataUPP)
 		tempupp = gUPP
@@ -1349,6 +1373,13 @@ func showFormUPP() {
 		}
 
 		// записать в БУ
+		if gBU.Variant == BU4 {
+			// переход в режим обслуживания для БУ4 = ввести пин
+			if !isServiceModeBU4() {
+				_, msg := setServiceModeBU4()
+				statusLabel.SetText(msg)
+			}
+		}
 		gUPP = tempupp
 		if managePower.Checked == true {
 			gBU.SetServiceMode()

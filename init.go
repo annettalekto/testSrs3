@@ -64,7 +64,10 @@ func initDataBU(variantBU OptionsBU) (err error) {
 }
 
 func refreshDataIPK() (err error) {
+
 	if gBU.Variant == BU4 {
+		channel1.Set(0) // если не выставить ошибка 131
+		channel2.Set(0)
 		return
 	}
 
@@ -161,9 +164,11 @@ func initIPK() (err error) {
 			return
 		}
 
-		if channel3.Init(channelN7, ipk.DACAtmosphere, 10); err != nil { // макс?
-			err = errors.New("ошибка инициализации ЦАП 7: " + err.Error())
-			return
+		if gBU.Variant != BU4 {
+			if channel3.Init(channelN7, ipk.DACAtmosphere, 10); err != nil {
+				err = errors.New("ошибка инициализации ЦАП 7: " + err.Error())
+				return
+			}
 		}
 	}
 
@@ -191,6 +196,12 @@ func InitFreqIpkChannel() (err error) {
 // Power питание БУ
 func (bu DescriptionBU) Power(on bool) {
 	// 1 -- выкл
+	if s1, s2, _ := sp.GetOutputSpeed(); (s1 + s2) > 0 {
+		sp.SetSpeed(0, 0)
+		sp.SetAcceleration(0, 0)
+		time.Sleep(2 * time.Second)
+	}
+
 	fds.Set50V(6, !on)
 	if gBU.Variant == BU4 {
 		bu.power = on
@@ -211,9 +222,11 @@ func (bu DescriptionBU) SetServiceMode() {
 	// if bu.turt && bu.power {
 	// 	return // режим установлен на главной форме
 	// }
-	sp.SetSpeed(0, 0)
-	sp.SetAcceleration(0, 0)
-	time.Sleep(2 * time.Second)
+	if s1, s2, _ := sp.GetOutputSpeed(); (s1 + s2) > 0 {
+		sp.SetSpeed(0, 0)
+		sp.SetAcceleration(0, 0)
+		time.Sleep(2 * time.Second)
+	}
 
 	bu.Power(false)
 	bu.Turt(true)

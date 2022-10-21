@@ -29,6 +29,8 @@ const (
 	idAddInd     = 2
 	idSetTime    = 0x5C7
 	idSetUPP     = 0x5C3
+	idSysInfo    = 0x5C0
+	idQueryInfo  = 0x5C1
 )
 
 // устанавливать время (в режиме обслуживания)
@@ -51,7 +53,7 @@ func setTimeBU(h, m, s int) (err error) {
 	return
 }
 
-func setCurrentTimeBU() (err error) {
+/*func setCurrentTimeBU() (err error) {
 
 	dt := time.Now()
 	h, _ := strconv.Atoi(dt.Format("15"))
@@ -61,7 +63,7 @@ func setCurrentTimeBU() (err error) {
 	err = setTimeBU(h, m, s)
 
 	return
-}
+}*/
 
 // запрос x5C1 RTR=0 len=1 номер УПП
 // ответ  x5C0 len=5 номер УПП + 4 байта данные мл.байтом вперед
@@ -73,8 +75,6 @@ func setCurrentTimeBU() (err error) {
 
 // прочитать УПП из БУ в gUPP
 func readUPPfromBU() (err error) {
-	const bu3pSysInfo = 0x5C0
-	const bu3pQueryInfo = 0x5C1
 	var msg candev.Message
 
 	// if nil == can25 {
@@ -83,7 +83,7 @@ func readUPPfromBU() (err error) {
 	// }
 
 	for number, value := range gUPP {
-		msg.ID = bu3pQueryInfo
+		msg.ID = idQueryInfo
 		msg.Len = 1
 		msg.Data[0] = byte(number)
 
@@ -93,7 +93,7 @@ func readUPPfromBU() (err error) {
 			return
 		}
 
-		msg, err = can25.GetMsgByID(bu3pSysInfo, 2*time.Second)
+		msg, err = can25.GetMsgByID(idSysInfo, 2*time.Second)
 		if err != nil {
 			err = errors.New("Не получено значение УПП с блока по CAN")
 			return

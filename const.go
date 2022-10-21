@@ -1,6 +1,10 @@
 // Code generated .* DO NOT EDIT.
 package main
 
+/*
+	файл скрипта бу4
+*/
+
 // идентификаторы CAN25
 const (
 	SYS_DATA        = 0x313

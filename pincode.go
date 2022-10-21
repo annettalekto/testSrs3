@@ -46,8 +46,7 @@ func updatePinCode(uDay, uMonth, uYear uint64) (pincode uint32, err error) {
 	return pincode, err
 }
 
-func setServiceMode() (ok bool) {
-	logInfo := ""
+func setServiceModeBU4() (ok bool, logInfo string) {
 
 	msg := candev.Message{ID: BU4_SET_PARAM, Len: 5} // id установки УПП
 
@@ -82,5 +81,21 @@ func setServiceMode() (ok bool) {
 
 	fmt.Println(logInfo)
 
+	return
+}
+
+func isServiceModeBU4() (ok bool) {
+	var msg candev.Message
+
+	msg.ID = BU3P_QUERY_INFO
+	msg.Data[0] = SERVICE_MODE
+	can25.Send(msg)
+
+	if msg, err := can25.GetMsgByID(BU4_SYS_INFO, 2*time.Second); err == nil {
+		if msg.Data[0] == SERVICE_MODE && msg.Data[1] == 1 {
+			// logInfo = fmt.Sprintf("Блок перешел в режим обслуживания.")
+			ok = true
+		}
+	}
 	return
 }
