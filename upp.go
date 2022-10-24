@@ -235,6 +235,23 @@ func refreshDataBU() (err error) {
 	}
 	gBU.RelayU = ival
 
+	// БУ 4
+	if gBU.Variant == BU4 {
+		i = 40
+		ival, err = strconv.Atoi(gUPP[i].Value)
+		if err != nil {
+			err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+		}
+		gBU.NumberDUP = ival
+
+		i = 41
+		ival, err = strconv.Atoi(gUPP[i].Value)
+		if err != nil {
+			err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
+		}
+		gBU.NumberDD = ival
+	}
+
 	return
 }
 

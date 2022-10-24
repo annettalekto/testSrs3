@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/widget"
 	"github.com/amdf/ipk"
 	"github.com/amdf/ixxatvci3/candev"
 )
@@ -20,6 +23,9 @@ var fcs *ipk.FreqDevice
 var channel1 ipk.PressureOutput // sensorTM Переменная для задания давления ТM в кгс/см² (канал 1)
 var channel2 ipk.PressureOutput // sensorTC Переменная для задания давления ТЦ в кгс/см² (канал 2)
 var channel3 ipk.PressureOutput // sensorGR Переменная для задания давления GR в кгс/см²
+
+var channel1BU4 ipk.PressureOutput
+var channel2BU4 ipk.PressureOutput
 var channelN6 *ipk.DAC
 
 var gBU DescriptionBU
@@ -49,15 +55,44 @@ type DescriptionBU struct {
 	RelayY          int
 	RelayRY         int
 	RelayU          int
+	// признаки бу4
+	NumberDUP int
+	NumberDD  int
+}
+
+// DescriptionForm то что изменяется от входных значений
+// (при смене уставок в упп нужно менять их на экране или
+// скрыть некоторые элементы при смене типа болка)
+type DescriptionForm struct {
+	Version, Year, ProgramName string
+
+	Status binding.String // строка (внизу) для ошибок, подсказок и др. инфы
+
+	RelayY  *widget.Check // уставки скоростей
+	RelayRY *widget.Check
+	RelayU  *widget.Check
+
+	Parameters binding.String // параметры имитации скорости (число зубьев и бандаж)
+
+	BoxBUS    *fyne.Container // сигналы БУС (есть только в 3ПВ)
+	BoxOut50V *fyne.Container // некоторые сигналы 3ПВ
+
+	// Для БУ-4
+	CheckTurt   *widget.Check // turt нет, есть режим обслуживания (уст-ся через can)
+	EntrySpeed2 *numericalEntry
+	EntryAccel2 *numericalEntry
+	EntryPress2 *numericalEntry
+	EntryPress3 *numericalEntry
+	BoxOut10V   *fyne.Container
+	Radio       *widget.RadioGroup
 }
 
 func initDataBU(variantBU OptionsBU) (err error) {
 	gBU.Variant = variantBU
 	gBU.Name = gDeviceChoice[variantBU]
 
-	mapupp, err := readParamFromTOML() // читаем имена признаков БУ, подсказки, предустановленные значения
+	mapupp, err := readParamFromTOML()
 	gUPP = mapupp
-	// err = readUPPfromBU() // читаем значения в блоке, с ними будет инициализироваться ИПК
 	refreshDataBU()
 
 	return
@@ -65,20 +100,19 @@ func initDataBU(variantBU OptionsBU) (err error) {
 
 func refreshDataIPK() (err error) {
 
-	if gBU.Variant == BU4 {
-		channel1.Set(0) // если не выставить ошибка 131
-		channel2.Set(0)
-		return
-	}
-
 	if err = sp.Init(fcs, gBU.NumberTeeth, gBU.BandageDiameter); err != nil {
 		// без запуска потока
 		fmt.Printf("InitFreqIpkChannel(): %e", err)
 		return
 	}
 
-	if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
-		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+	if gBU.Variant == BU4 {
+		channel1BU4.Set(0) // если не выставить ошибка 131
+		channel2BU4.Set(0)
+	} else {
+		if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
+			err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+		}
 	}
 	return
 }
@@ -110,66 +144,63 @@ func initIPK() (err error) {
 		return
 	}
 
-	if gBU.Variant == BU4 {
-		// открываем ЦАП 8
-		channel8 := new(ipk.DAC)
-		if channel8.Init(fas, ipk.DAC8); err != nil {
-			err = errors.New("ошибка инициализации ЦАП 8: " + err.Error())
-			return
-		}
+	// открываем ЦАП 5
+	channelN5 := new(ipk.DAC)
+	if channelN5.Init(fas, ipk.DAC5); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
+		return
+	}
 
-		// открываем ЦАП 9
-		channel9 := new(ipk.DAC)
-		if channel9.Init(fas, ipk.DAC9); err != nil {
-			err = errors.New("ошибка инициализации ЦАП 9: " + err.Error())
-			return
-		}
+	// открываем ЦАП 6
+	channelN6 = new(ipk.DAC)
+	if channelN6.Init(fas, ipk.DAC6); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+		return
+	}
 
-		if channel1.Init(channel8, ipk.DACAtmosphere, 10); err != nil { // максимальное давление 10 кгс/см² (= 10 технических атмосфер) соответствует 20 мА
-			err = errors.New("ошибка инициализации ЦАП 8: " + err.Error())
-			return
-		}
-		if channel2.Init(channel9, ipk.DACAtmosphere, 10); err != nil {
-			err = errors.New("ошибка инициализации ЦАП 9: " + err.Error())
-			return
-		}
+	// открываем ЦАП 7
+	channelN7 := new(ipk.DAC)
+	if channelN7.Init(fas, ipk.DAC7); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 7: " + err.Error())
+		return
+	}
 
-	} else {
+	// открываем ЦАП 8
+	channel8 := new(ipk.DAC)
+	if channel8.Init(fas, ipk.DAC8); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 8: " + err.Error())
+		return
+	}
 
-		// открываем ЦАП 5
-		channelN5 := new(ipk.DAC)
-		if channelN5.Init(fas, ipk.DAC5); err != nil {
-			err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
-			return
-		}
+	// открываем ЦАП 9
+	channel9 := new(ipk.DAC)
+	if channel9.Init(fas, ipk.DAC9); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 9: " + err.Error())
+		return
+	}
 
-		// открываем ЦАП 6
-		channelN6 = new(ipk.DAC)
-		if channelN6.Init(fas, ipk.DAC6); err != nil {
-			err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
-			return
-		}
+	if channel1.Init(channelN5, ipk.DACAtmosphere, 10); err != nil { // максимальное давление 10 кгс/см² (= 10 технических атмосфер) соответствует 20 мА
+		err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
+		return
+	}
 
-		// открываем ЦАП 7
-		channelN7 := new(ipk.DAC)
-		channelN7.Init(fas, ipk.DAC7)
+	if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
+		return
+	}
 
-		if channel1.Init(channelN5, ipk.DACAtmosphere, 10); err != nil { // максимальное давление 10 кгс/см² (= 10 технических атмосфер) соответствует 20 мА
-			err = errors.New("ошибка инициализации ЦАП 5: " + err.Error())
-			return
-		}
+	if channel3.Init(channelN7, ipk.DACAtmosphere, 10); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 7: " + err.Error())
+		return
+	}
 
-		if channel2.Init(channelN6, ipk.DACAtmosphere, gBU.PressureLimit); err != nil {
-			err = errors.New("ошибка инициализации ЦАП 6: " + err.Error())
-			return
-		}
-
-		if gBU.Variant != BU4 {
-			if channel3.Init(channelN7, ipk.DACAtmosphere, 10); err != nil {
-				err = errors.New("ошибка инициализации ЦАП 7: " + err.Error())
-				return
-			}
-		}
+	if channel1BU4.Init(channel8, ipk.DACAtmosphere, 10); err != nil { // максимальное давление 10 кгс/см² (= 10 технических атмосфер) соответствует 20 мА
+		err = errors.New("ошибка инициализации ЦАП 8: " + err.Error())
+		return
+	}
+	if channel2BU4.Init(channel9, ipk.DACAtmosphere, 10); err != nil {
+		err = errors.New("ошибка инициализации ЦАП 9: " + err.Error())
+		return
 	}
 
 	return

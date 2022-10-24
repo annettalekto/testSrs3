@@ -193,27 +193,6 @@ func getTitle(str string) *widget.Label {
 	return widget.NewLabelWithStyle(str, fyne.TextAlignCenter, style)
 }
 
-// DescriptionForm то что изменяется от входных значений
-// (при смене уставок в упп нужно менять их на экране или
-// скрыть некоторые элементы при смене типа болка)
-type DescriptionForm struct {
-	Version, Year, ProgramName string
-
-	Status binding.String // строка (внизу) для ошибок, подсказок и др. инфы
-
-	RelayY  *widget.Check // уставки скоростей
-	RelayRY *widget.Check
-	RelayU  *widget.Check
-
-	Parameters binding.String // параметры имитации скорости (число зубьев и бандаж)
-
-	BoxBUS    *fyne.Container // сигналы БУС (есть только в 3ПВ)
-	BoxOut50V *fyne.Container // некоторые сигналы 3ПВ
-
-	// Для БУ-4
-	CheckTurt *widget.Check // turt нет, есть режим обслуживания (уст-ся через can)
-}
-
 func changeFormBU4() {
 
 	gForm.CheckTurt.Text = "Режим обслуживания"
@@ -224,8 +203,26 @@ func changeFormBU4() {
 		gForm.CheckTurt.SetChecked(false)
 	}
 
+	if gBU.NumberDUP == 1 {
+		gForm.EntrySpeed2.Entry.Disable()
+		gForm.EntryAccel2.Entry.Disable()
+	} else { // gBU.NumberDUP == 2
+		gForm.EntrySpeed2.Entry.Enable()
+		gForm.EntryAccel2.Entry.Enable()
+	}
+
+	if gBU.NumberDUP == 1 {
+		gForm.EntryPress2.Entry.Disable()
+		gForm.EntryPress3.Entry.Disable()
+	} else { //gBU.NumberDUP == 2
+		gForm.EntryPress2.Entry.Enable()
+		gForm.EntryPress3.Entry.Disable()
+	}
+
 	gForm.BoxBUS.Hide()
 	gForm.BoxOut50V.Hide()
+	gForm.BoxOut10V.Hide()
+	gForm.Radio.Disable()
 }
 
 // обновить данные на форме если было изменено значение УПП или выбран новый блок
@@ -243,6 +240,14 @@ func refreshForm() (err error) {
 	gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
 	gForm.CheckTurt.Text = "TURT"
 	gForm.CheckTurt.Refresh()
+
+	gForm.EntrySpeed2.Entry.Enable()
+	gForm.EntryAccel2.Entry.Enable()
+	gForm.EntryPress2.Entry.Enable()
+	gForm.EntryPress3.Entry.Enable()
+
+	gForm.BoxOut10V.Visible()
+	gForm.Radio.Enable()
 
 	switch gBU.Variant {
 	case BU3P, BU3PA:
@@ -335,18 +340,20 @@ func getListCAN() fyne.CanvasObject {
 			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
 			data = append(data, fmt.Sprintf("Время БУ:  %s", t.Format("02.01.2006 15:04")))
 
-			if bytes, ok := mapDataCAN[idDigitalInd]; ok {
-				str := byteToDigitalIndicator(bytes)
-				data = append(data, fmt.Sprintf("%s %s", "Осн. инд.:", str))
-			} else {
-				data = append(data, fmt.Sprintf("%s —", "Осн. инд.:"))
-			}
+			if gBU.Variant != BU4 {
+				if bytes, ok := mapDataCAN[idDigitalInd]; ok {
+					str := byteToDigitalIndicator(bytes)
+					data = append(data, fmt.Sprintf("%s %s", "Осн. инд.:", str))
+				} else {
+					data = append(data, fmt.Sprintf("%s —", "Осн. инд.:"))
+				}
 
-			if bytes, ok := mapDataCAN[idAddInd]; ok {
-				str := byteToAddIndicator(bytes)
-				data = append(data, fmt.Sprintf("%s %s", "Доп. инд.:", str))
-			} else {
-				data = append(data, fmt.Sprintf("%s —", "Доп. инд.:"))
+				if bytes, ok := mapDataCAN[idAddInd]; ok {
+					str := byteToAddIndicator(bytes)
+					data = append(data, fmt.Sprintf("%s %s", "Доп. инд.:", str))
+				} else {
+					data = append(data, fmt.Sprintf("%s —", "Доп. инд.:"))
+				}
 			}
 
 			// data = append(data, " ")
@@ -389,11 +396,15 @@ func getListCAN() fyne.CanvasObject {
 				tm, tc, gr := byteToPressure(bytes)
 				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm))
 				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc))
-				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr))
+				if gBU.Variant != BU4 {
+					data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr))
+				}
 			} else {
 				data = append(data, fmt.Sprintf("%-22s —", "Давление ТМ (кг/см²):"))
 				data = append(data, fmt.Sprintf("%-22s —", "Давление ТС (кг/см²):"))
-				data = append(data, fmt.Sprintf("%-22s —", "Давление ГР (кг/см²):"))
+				if gBU.Variant != BU4 {
+					data = append(data, fmt.Sprintf("%-22s —", "Давление ГР (кг/см²):"))
+				}
 			}
 
 			if bytes, ok := mapDataCAN[idDistance]; ok {
@@ -405,53 +416,55 @@ func getListCAN() fyne.CanvasObject {
 
 			data = append(data, " ") // отступ
 
-			if bytes, ok := mapDataCAN[idALS]; ok {
-				_, str := byteToALS(bytes)
-				data = append(data, fmt.Sprintf("%-16s %s", "АЛС:", str)) // текст на 16
-				if (bytes[0] & 0x40) == 0x40 {
-					str = "1"
+			if gBU.Variant != BU4 {
+				if bytes, ok := mapDataCAN[idALS]; ok {
+					_, str := byteToALS(bytes)
+					data = append(data, fmt.Sprintf("%-16s %s", "АЛС:", str)) // текст на 16
+					if (bytes[0] & 0x40) == 0x40 {
+						str = "1"
+					} else {
+						str = "0"
+					}
+					data = append(data, fmt.Sprintf("%-16s %s", "Kлюч ЭПК 1 каб:", str))
+					if (bytes[0] & 0x80) == 0x80 {
+						str = "1"
+					} else {
+						str = "0"
+					}
+					data = append(data, fmt.Sprintf("%-16s %s", "Kлюч ЭПК 2 каб:", str))
+					if (bytes[3] & 0x20) == 0x20 {
+						str = "2"
+					} else {
+						str = "1"
+					}
+					data = append(data, fmt.Sprintf("%-16s %s", "Активна каб.:", str))
+					if (bytes[5] & 0x20) == 0x20 {
+						str = "1"
+					} else {
+						str = "0"
+					}
+					data = append(data, fmt.Sprintf("%-16s %s", "Cостояние ЭПК:", str))
+					if (bytes[6] & 0x20) == 0x20 {
+						str = "1"
+					} else {
+						str = "0"
+					}
+					data = append(data, fmt.Sprintf("%-16s %s", "Активность САУТ:", str))
 				} else {
-					str = "0"
+					data = append(data, fmt.Sprintf("%-16s —", "АЛС:"))
+					data = append(data, fmt.Sprintf("%-16s —", "Kлюч ЭПК 1 каб:"))
+					data = append(data, fmt.Sprintf("%-16s —", "Kлюч ЭПК 2 каб:"))
+					data = append(data, fmt.Sprintf("%-16s —", "Активна каб.:"))
+					data = append(data, fmt.Sprintf("%-16s —", "Cостояние ЭПК:"))
+					data = append(data, fmt.Sprintf("%-16s —", "Активность САУТ:"))
 				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Kлюч ЭПК 1 каб:", str))
-				if (bytes[0] & 0x80) == 0x80 {
-					str = "1"
-				} else {
-					str = "0"
-				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Kлюч ЭПК 2 каб:", str))
-				if (bytes[3] & 0x20) == 0x20 {
-					str = "2"
-				} else {
-					str = "1"
-				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Активна каб.:", str))
-				if (bytes[5] & 0x20) == 0x20 {
-					str = "1"
-				} else {
-					str = "0"
-				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Cостояние ЭПК:", str))
-				if (bytes[6] & 0x20) == 0x20 {
-					str = "1"
-				} else {
-					str = "0"
-				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Активность САУТ:", str))
-			} else {
-				data = append(data, fmt.Sprintf("%-16s —", "АЛС:"))
-				data = append(data, fmt.Sprintf("%-16s —", "Kлюч ЭПК 1 каб:"))
-				data = append(data, fmt.Sprintf("%-16s —", "Kлюч ЭПК 2 каб:"))
-				data = append(data, fmt.Sprintf("%-16s —", "Активна каб.:"))
-				data = append(data, fmt.Sprintf("%-16s —", "Cостояние ЭПК:"))
-				data = append(data, fmt.Sprintf("%-16s —", "Активность САУТ:"))
-			}
 
-			if bytes, ok := mapDataCAN[idCodeIF]; ok {
-				_, _, _, str := byteToCodeIF(bytes)
-				data = append(data, fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str))
-			} else {
-				data = append(data, fmt.Sprintf("%-16s —", "Сигнал ИФ:"))
+				if bytes, ok := mapDataCAN[idCodeIF]; ok {
+					_, _, _, str := byteToCodeIF(bytes)
+					data = append(data, fmt.Sprintf("%-16s %s", "Сигнал ИФ:", str))
+				} else {
+					data = append(data, fmt.Sprintf("%-16s —", "Сигнал ИФ:"))
+				}
 			}
 
 			if bytes, ok := mapDataCAN[idBin]; ok {
@@ -479,19 +492,23 @@ func getListCAN() fyne.CanvasObject {
 				} else {
 					str = "0"
 				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 1 каб.:", str)) // разобщительный кран ЭПК 1 каб
-				if (bytes[2] & 0x10) == 0x10 {
-					str = "1"
-				} else {
-					str = "0"
+				if gBU.Variant != BU4 {
+					data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 1 каб.:", str)) // разобщительный кран ЭПК 1 каб
+					if (bytes[2] & 0x10) == 0x10 {
+						str = "1"
+					} else {
+						str = "0"
+					}
+					data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 2 каб.:", str))
 				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 2 каб.:", str))
 			} else {
 				data = append(data, fmt.Sprintf("%-16s —", "Движение вперёд:"))
 				data = append(data, fmt.Sprintf("%-16s —", "Движение назад:"))
 				data = append(data, fmt.Sprintf("%-16s —", "Сигнал Тяга:"))
-				data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 1 каб.:"))
-				data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 2 каб.:"))
+				if gBU.Variant != BU4 {
+					data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 1 каб.:"))
+					data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 2 каб.:"))
+				}
 			}
 
 			list.Refresh()
@@ -601,7 +618,7 @@ func speed() fyne.CanvasObject {
 
 	// обработка скорости
 	entrySpeed1 := newSpecialEntry("0")
-	entrySpeed2 := newSpecialEntry("0")
+	gForm.EntrySpeed2 = newSpecialEntry("0")
 
 	entrySpeed1.Entry.OnChanged = func(str string) {
 		if str == "" {
@@ -615,7 +632,7 @@ func speed() fyne.CanvasObject {
 		}
 		if sep, _ := separately.Get(); !sep { // !не раздельное управление
 			speed2 = speed1                // тоже в переменную
-			entrySpeed2.Entry.SetText(str) // и в поле второго канала скорости
+			gForm.EntrySpeed2.SetText(str) // и в поле второго канала скорости
 		}
 	}
 	entrySpeed1.Entry.OnSubmitted = func(str string) {
@@ -628,15 +645,15 @@ func speed() fyne.CanvasObject {
 		gForm.Status.Set(" ")
 		if strings.Contains(str, ".") {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
-			entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+			gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
 		} else {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.0f", speed1))
-			entrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
+			gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
 		}
 		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 	}
 
-	entrySpeed2.Entry.OnChanged = func(str string) {
+	gForm.EntrySpeed2.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
 		}
@@ -651,7 +668,7 @@ func speed() fyne.CanvasObject {
 			entrySpeed1.Entry.SetText(str)
 		}
 	}
-	entrySpeed2.Entry.OnSubmitted = func(str string) {
+	gForm.EntrySpeed2.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
@@ -661,17 +678,17 @@ func speed() fyne.CanvasObject {
 		gForm.Status.Set(" ")
 		if strings.Contains(str, ".") {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
-			entrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
+			gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
 		} else {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.0f", speed1))
-			entrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
+			gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.0f", speed2))
 		}
 		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 	}
 
 	// обработка ускорения
 	entryAccel1 := newSpecialEntry("0.00")
-	entryAccel2 := newSpecialEntry("0.00")
+	gForm.EntryAccel2 = newSpecialEntry("0.00")
 
 	entryAccel1.Entry.OnChanged = func(str string) {
 		if str == "" {
@@ -685,7 +702,7 @@ func speed() fyne.CanvasObject {
 		}
 		if sep, _ := separately.Get(); !sep {
 			accel2 = accel1
-			entryAccel2.Entry.SetText(str)
+			gForm.EntryAccel2.Entry.SetText(str)
 		}
 	}
 	entryAccel1.Entry.OnSubmitted = func(str string) {
@@ -697,11 +714,11 @@ func speed() fyne.CanvasObject {
 		}
 		gForm.Status.Set(" ")
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
-		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
+		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
 	}
 
-	entryAccel2.Entry.OnChanged = func(str string) {
+	gForm.EntryAccel2.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
 		}
@@ -716,7 +733,7 @@ func speed() fyne.CanvasObject {
 			entryAccel1.Entry.SetText(str)
 		}
 	}
-	entryAccel2.Entry.OnSubmitted = func(str string) {
+	gForm.EntryAccel2.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
@@ -725,7 +742,7 @@ func speed() fyne.CanvasObject {
 		}
 		gForm.Status.Set(" ")
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
-		entryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
+		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
 	}
 
@@ -802,8 +819,8 @@ func speed() fyne.CanvasObject {
 	box1 := container.NewGridWithColumns(
 		3,
 		dummy, widget.NewLabel("Канал 1"), widget.NewLabel("Канал 2"),
-		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, entrySpeed2,
-		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, entryAccel2,
+		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, gForm.EntrySpeed2,
+		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, gForm.EntryAccel2,
 		// widget.NewLabel("Направление:"), selectDirection1, selectDirection2,
 	)
 
@@ -918,7 +935,13 @@ func speed() fyne.CanvasObject {
 	}
 	entryPress1.Entry.OnSubmitted = func(str string) {
 		selectAll()
-		if err = channel1.Set(press1); err != nil {
+
+		if gBU.Variant != BU4 {
+			err = channel1.Set(press1)
+		} else {
+			err = channel1BU4.Set(press1)
+		}
+		if err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
 			gForm.Status.Set("Ошибка установки давления 1")
 			return
@@ -928,8 +951,8 @@ func speed() fyne.CanvasObject {
 		entryPress1.Entry.SetText(fmt.Sprintf("%.1f", press1))
 	}
 
-	entryPress2 := newSpecialEntry("0.0")
-	entryPress2.Entry.OnChanged = func(str string) {
+	gForm.EntryPress2 = newSpecialEntry("0.0")
+	gForm.EntryPress2.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
 		}
@@ -945,20 +968,25 @@ func speed() fyne.CanvasObject {
 			gForm.Status.Set(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2))
 		}
 	}
-	entryPress2.Entry.OnSubmitted = func(str string) {
+	gForm.EntryPress2.Entry.OnSubmitted = func(str string) {
 		selectAll()
-		if err = channel2.Set(press2); err != nil {
+		if gBU.Variant != BU4 {
+			err = channel2.Set(press1)
+		} else {
+			err = channel2BU4.Set(press1)
+		}
+		if err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
 			gForm.Status.Set("Ошибка установки давления 2")
 			return
 		}
 		gForm.Status.Set(" ")
 		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
-		entryPress2.Entry.SetText(fmt.Sprintf("%.1f", press2))
+		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.1f", press2))
 	}
 
-	entryPress3 := newSpecialEntry("0.0")
-	entryPress3.Entry.OnChanged = func(str string) {
+	gForm.EntryPress3 = newSpecialEntry("0.0")
+	gForm.EntryPress3.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
 		}
@@ -973,7 +1001,7 @@ func speed() fyne.CanvasObject {
 			gForm.Status.Set(fmt.Sprintf("Давление 3: максимум %.0f кгс/см2", limit3))
 		}
 	}
-	entryPress3.Entry.OnSubmitted = func(str string) {
+	gForm.EntryPress3.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if err = channel3.Set(press3); err != nil {
 			fmt.Printf("Ошибка установки давления 3\n")
@@ -981,13 +1009,13 @@ func speed() fyne.CanvasObject {
 		}
 		gForm.Status.Set(" ")
 		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
-		entryPress3.Entry.SetText(fmt.Sprintf("%.1f", press3))
+		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.1f", press3))
 	}
 
 	box3 := container.NewGridWithColumns(
 		3,
 		widget.NewLabel("Канал 1 (ТМ):"), widget.NewLabel("Канал 2 (ТС):"), widget.NewLabel("Канал 3 (ГР):"),
-		entryPress1, entryPress2, entryPress3,
+		entryPress1, gForm.EntryPress2, gForm.EntryPress3,
 	)
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
 
@@ -1014,7 +1042,7 @@ func outputSignals() fyne.CanvasObject {
 		"Ж 1.9",
 		"З 1.9",
 	}
-	radio := widget.NewRadioGroup(code, func(s string) {
+	gForm.Radio = widget.NewRadioGroup(code, func(s string) {
 		fds.SetIF(ipk.IFEnable)
 		switch s {
 		case "Ноль":
@@ -1038,9 +1066,9 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Код РЦ: %s (%v)\n", s, err)
 	})
-	radio.SetSelected("Ноль")
+	gForm.Radio.SetSelected("Ноль")
 	// radio.Horizontal = true
-	boxCode := container.NewVBox(getTitle("Коды РЦ:      "), radio)
+	boxCode := container.NewVBox(getTitle("Коды РЦ:      "), gForm.Radio)
 
 	// 10V
 	checkG := widget.NewCheck("З", func(on bool) {
@@ -1107,7 +1135,7 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 50В: 7=%v Тяга (%v)\n", on, err)
 	})
-	boxOut10V := container.NewVBox(checkG, checkY, checkRY, checkR, checkW, checkEPK1, checkIF, checkTracktion)
+	gForm.BoxOut10V = container.NewVBox( /*checkTracktion,*/ checkG, checkY, checkRY, checkR, checkW, checkEPK1, checkIF)
 
 	// 50V
 	checkLP := widget.NewCheck("ЛП", func(on bool) {
@@ -1152,7 +1180,7 @@ func outputSignals() fyne.CanvasObject {
 	})
 	gForm.BoxOut50V = container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkPowerBU, checkKeyEPK)
 
-	boxOut := container.NewVBox(getTitle("    Вых. БУ:     "), boxOut10V, gForm.BoxOut50V)
+	boxOut := container.NewVBox(getTitle("    Вых. БУ:     "), checkTracktion, gForm.BoxOut10V, gForm.BoxOut50V)
 	box := container.NewHBox(boxOut, boxCode)
 
 	return box
@@ -1160,6 +1188,7 @@ func outputSignals() fyne.CanvasObject {
 
 // Уставки, входы БУС = считать
 func inputSignals() fyne.CanvasObject {
+	currentBU := OptionsBU(BU3PV)
 
 	relay1 := widget.NewCheck("1", nil)
 	relay20 := widget.NewCheck("20", nil)
@@ -1178,8 +1207,45 @@ func inputSignals() fyne.CanvasObject {
 
 	box := container.NewHBox(boxRelay, gForm.BoxBUS)
 
+	checkBoxEnable := func() {
+		relay1.Enable()
+		relay20.Enable()
+		gForm.RelayY.Enable()
+		gForm.RelayRY.Enable()
+		gForm.RelayU.Enable()
+
+		checkPSS2.Enable()
+		checkUhod2.Enable()
+		checkPowerEPK.Enable()
+		checkPB2.Enable()
+		checkEVM.Enable()
+	}
+
+	checkBoxDisable := func() {
+		relay1.Disable()
+		relay20.Disable()
+		gForm.RelayY.Disable()
+		gForm.RelayRY.Disable()
+		gForm.RelayU.Disable()
+
+		checkPSS2.Disable()
+		checkUhod2.Disable()
+		checkPowerEPK.Disable()
+		checkPB2.Disable()
+		checkEVM.Disable()
+	}
+
 	go func() {
 		for {
+			if currentBU != gBU.Variant {
+				if gBU.Variant == BU4 {
+					checkBoxDisable()
+				} else {
+					checkBoxEnable()
+				}
+				currentBU = gBU.Variant
+			}
+
 			bin, err := fas.UintGetBinaryInput()
 			if err != nil {
 				// fmt.Printf("Ошибка получения двоичного сигнала\n") отладка
