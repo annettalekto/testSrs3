@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/data/binding"
-	"fyne.io/fyne/v2/widget"
 	"github.com/amdf/ipk"
 	"github.com/amdf/ixxatvci3/candev"
 )
@@ -56,35 +53,9 @@ type DescriptionBU struct {
 	RelayRY         int
 	RelayU          int
 	// признаки бу4
-	NumberDUP int
-	NumberDD  int
-}
-
-// DescriptionForm то что изменяется от входных значений
-// (при смене уставок в упп нужно менять их на экране или
-// скрыть некоторые элементы при смене типа болка)
-type DescriptionForm struct {
-	Version, Year, ProgramName string
-
-	Status binding.String // строка (внизу) для ошибок, подсказок и др. инфы
-
-	RelayY  *widget.Check // уставки скоростей
-	RelayRY *widget.Check
-	RelayU  *widget.Check
-
-	Parameters binding.String // параметры имитации скорости (число зубьев и бандаж)
-
-	BoxBUS    *fyne.Container // сигналы БУС (есть только в 3ПВ)
-	BoxOut50V *fyne.Container // некоторые сигналы 3ПВ
-
-	// Для БУ-4
-	CheckTurt   *widget.Check // turt нет, есть режим обслуживания (уст-ся через can)
-	EntrySpeed2 *numericalEntry
-	EntryAccel2 *numericalEntry
-	EntryPress2 *numericalEntry
-	EntryPress3 *numericalEntry
-	BoxOut10V   *fyne.Container
-	Radio       *widget.RadioGroup
+	NumberDUP  int
+	NumberDD   int
+	VersionBU4 string
 }
 
 func initDataBU(variantBU OptionsBU) (err error) {

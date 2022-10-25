@@ -134,6 +134,7 @@ func main() {
 	} else {
 		gForm.Status.Set(err.Error())
 	}
+	refreshForm()
 
 	w.SetContent(box)
 	w.ShowAndRun()
@@ -193,6 +194,36 @@ func getTitle(str string) *widget.Label {
 	return widget.NewLabelWithStyle(str, fyne.TextAlignCenter, style)
 }
 
+//---------------------------------------------------------------------------//
+// изменения на главной форме
+
+// DescriptionForm то что изменяется от входных значений
+// (при смене уставок в упп нужно менять их на экране или
+// скрыть некоторые элементы при смене типа болка)
+type DescriptionForm struct {
+	Version, Year, ProgramName string
+
+	Status binding.String // строка (внизу) для ошибок, подсказок и др. инфы
+
+	RelayY  *widget.Check // уставки скоростей
+	RelayRY *widget.Check
+	RelayU  *widget.Check
+
+	Parameters binding.String // параметры имитации скорости (число зубьев и бандаж)
+
+	BoxBUS    *fyne.Container // сигналы БУС (есть только в 3ПВ)
+	BoxOut50V *fyne.Container // некоторые сигналы 3ПВ
+
+	// Для БУ-4
+	CheckTurt   *widget.Check // turt нет, есть режим обслуживания (уст-ся через can)
+	EntrySpeed2 *numericalEntry
+	EntryAccel2 *numericalEntry
+	EntryPress2 *numericalEntry
+	EntryPress3 *numericalEntry
+	BoxOut10V   *fyne.Container
+	Radio       *widget.RadioGroup
+}
+
 func changeFormBU4() {
 
 	gForm.CheckTurt.Text = "Режим обслуживания"
@@ -223,6 +254,10 @@ func changeFormBU4() {
 	gForm.BoxOut50V.Hide()
 	gForm.BoxOut10V.Hide()
 	gForm.Radio.Disable()
+
+	if major, minor, patch, number, err := canGetVersionBU4(); err == nil {
+		gBU.VersionBU4 = fmt.Sprintf("Версия %d.%d.%d (в лоции №%d)", major, minor, patch, number)
+	}
 }
 
 // обновить данные на форме если было изменено значение УПП или выбран новый блок
@@ -230,6 +265,7 @@ func refreshForm() (err error) {
 
 	refreshDataIPK()
 
+	gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
 	gForm.RelayY.Text = fmt.Sprintf("%d", gBU.RelayY)
 	gForm.RelayRY.Text = fmt.Sprintf("%d", gBU.RelayRY)
 	gForm.RelayU.Text = fmt.Sprintf("%d", gBU.RelayU)
@@ -237,17 +273,18 @@ func refreshForm() (err error) {
 	gForm.RelayRY.Refresh()
 	gForm.RelayU.Refresh()
 
-	gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
-	gForm.CheckTurt.Text = "TURT"
-	gForm.CheckTurt.Refresh()
+	if gBU.Variant != BU4 {
+		gForm.CheckTurt.Text = "TURT"
+		gForm.CheckTurt.Refresh()
 
-	gForm.EntrySpeed2.Entry.Enable()
-	gForm.EntryAccel2.Entry.Enable()
-	gForm.EntryPress2.Entry.Enable()
-	gForm.EntryPress3.Entry.Enable()
+		gForm.EntrySpeed2.Entry.Enable()
+		gForm.EntryAccel2.Entry.Enable()
+		gForm.EntryPress2.Entry.Enable()
+		gForm.EntryPress3.Entry.Enable()
 
-	gForm.BoxOut10V.Visible()
-	gForm.Radio.Enable()
+		gForm.BoxOut10V.Show()
+		gForm.Radio.Enable()
+	}
 
 	switch gBU.Variant {
 	case BU3P, BU3PA:
@@ -340,7 +377,11 @@ func getListCAN() fyne.CanvasObject {
 			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
 			data = append(data, fmt.Sprintf("Время БУ:  %s", t.Format("02.01.2006 15:04")))
 
-			if gBU.Variant != BU4 {
+			if gBU.Variant == BU4 {
+				if gBU.VersionBU4 != "" {
+					data = append(data, gBU.VersionBU4)
+				}
+			} else {
 				if bytes, ok := mapDataCAN[idDigitalInd]; ok {
 					str := byteToDigitalIndicator(bytes)
 					data = append(data, fmt.Sprintf("%s %s", "Осн. инд.:", str))
@@ -1332,6 +1373,7 @@ func top() fyne.CanvasObject {
 			gBU.Turt(on)
 		}
 	})
+	// Смена блока туть
 	var selectDevice *widget.Select
 	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
 		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
@@ -1362,6 +1404,9 @@ func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
 	managePower := widget.NewCheck("Управлять питанием", nil)
+	if gBU.Variant == BU4 {
+		managePower.Hide()
+	}
 
 	w := fyne.CurrentApp().NewWindow("Установка условно постоянных признаков " + gBU.Name) // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -1415,6 +1460,7 @@ func showFormUPP() {
 		for number, upp := range gUPP {
 			paramEntry[number].SetText(upp.Value)
 		}
+		// refreshForm() todo
 	})
 
 	// записать то что на форме в БУ

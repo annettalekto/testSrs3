@@ -95,7 +95,7 @@ func readUPPfromBU() (err error) {
 
 		msg, err = can25.GetMsgByID(idSysInfo, 2*time.Second)
 		if err != nil {
-			err = errors.New("Не получено значение УПП с блока по CAN")
+			err = errors.New("Не получены значения УПП с блока по CAN")
 			return
 		} else if msg.Data[0] == byte(number) {
 			if number == 10 {
@@ -116,7 +116,6 @@ func readUPPfromBU() (err error) {
 		gUPP[number] = value
 	}
 	refreshDataBU()
-	refreshForm()
 
 	return
 }
@@ -461,6 +460,30 @@ func byteToBinSignal(data [8]byte) (str string) {
 	} else {
 		str = "движение вперед..."
 	}
+
+	return
+}
+
+func canGetVersionBU4() (major, minor, patch, number byte, err error) {
+
+	msg := candev.Message{ID: SYS_DATA_QUERY, Len: 1}
+	msg.Data[0] = SOFT_VERSION
+	can25.Send(msg)
+
+	if msg, err = can25.GetMsgByID(SYS_DATA, 2*time.Second); err != nil {
+		err = errors.New("canGetVersionBU(): " + err.Error())
+		return
+	}
+	if msg.Data[0] == SOFT_VERSION {
+
+		major = msg.Data[1]
+		minor = msg.Data[2]
+		patch = msg.Data[3]
+		number = msg.Data[4]
+	}
+
+	fmt.Printf("Получен номер версии бортовой БУ: v.%d.%d.%d (в лоции №%d), err: %v ", major, minor, patch, number, err)
+	// str = fmt.Sprintf("v.%d.%d.%d (в лоции №%d)", major, minor, patch, number)
 
 	return
 }
