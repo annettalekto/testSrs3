@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"runtime"
@@ -36,7 +37,7 @@ var gForm DescriptionForm
 
 func main() {
 	gForm.Version, gForm.Year = "1.0.0", "2022 г."
-	gForm.ProgramName = "Электронная имитация параметров"
+	gForm.ProgramName = "Электронная имитация параметров КПД"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -91,10 +92,12 @@ func main() {
 	w.SetMainMenu(menu)
 
 	go func() { // простите
-		time.Sleep(1 * time.Second)
-		for _, item := range menu.Items[0].Items {
-			if item.Label == "Quit" {
-				item.Label = "Выход"
+		for {
+			time.Sleep(1 * time.Second)
+			for _, item := range menu.Items[0].Items {
+				if item.Label == "Quit" {
+					item.Label = "Выход"
+				}
 			}
 		}
 	}()
@@ -897,11 +900,10 @@ func speed() fyne.CanvasObject {
 	// todo дублировать установку?
 	// }
 	buttonMileage := widget.NewButton("Пуск", func() {
-		// todo кнопка стоп?
-		if 0 == setDistance {
-			gForm.Status.Set("Ошибка в поле ввода «Дистанция»")
-			return
-		}
+		// if 0 == setDistance { нулем оно стопиться
+		// 	gForm.Status.Set("Ошибка в поле ввода «Дистанция»")
+		// 	return
+		// }
 		if err = sp.SetLimitWay(setDistance); err != nil {
 			fmt.Printf("Ошибка установки пути\n")
 			gForm.Status.Set("Ошибка установки пути")
@@ -973,14 +975,17 @@ func speed() fyne.CanvasObject {
 		if press1 > limit1 {
 			gForm.Status.Set(fmt.Sprintf("Давление 1: максимум %.0f кгс/см2", limit1))
 		}
+		if press1 < 0 {
+			gForm.Status.Set(fmt.Sprintf("Давление должно быть положительным"))
+		}
 	}
 	entryPress1.Entry.OnSubmitted = func(str string) {
 		selectAll()
 
 		if gBU.Variant != BU4 {
-			err = channel1.Set(press1)
+			err = channel1.Set(math.Abs(press1))
 		} else {
-			err = channel1BU4.Set(press1)
+			err = channel1BU4.Set(math.Abs(press1))
 		}
 		if err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
@@ -988,8 +993,8 @@ func speed() fyne.CanvasObject {
 			return
 		}
 		gForm.Status.Set(" ")
-		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", press1, err)
-		entryPress1.Entry.SetText(fmt.Sprintf("%.1f", press1))
+		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", math.Abs(press1), err)
+		entryPress1.Entry.SetText(fmt.Sprintf("%.1f", math.Abs(press1)))
 	}
 
 	gForm.EntryPress2 = newSpecialEntry("0.0")
@@ -1008,13 +1013,16 @@ func speed() fyne.CanvasObject {
 		if press2 > limit2 {
 			gForm.Status.Set(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2))
 		}
+		if press2 < 0 {
+			gForm.Status.Set(fmt.Sprintf("Давление должно быть положительным"))
+		}
 	}
 	gForm.EntryPress2.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if gBU.Variant != BU4 {
-			err = channel2.Set(press2)
+			err = channel2.Set(math.Abs(press2))
 		} else {
-			err = channel2BU4.Set(press2)
+			err = channel2BU4.Set(math.Abs(press2))
 		}
 		if err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
@@ -1022,8 +1030,8 @@ func speed() fyne.CanvasObject {
 			return
 		}
 		gForm.Status.Set(" ")
-		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", press2, err)
-		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.1f", press2))
+		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", math.Abs(press2), err)
+		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.1f", math.Abs(press2)))
 	}
 
 	gForm.EntryPress3 = newSpecialEntry("0.0")
@@ -1041,16 +1049,19 @@ func speed() fyne.CanvasObject {
 		if press3 > limit3 {
 			gForm.Status.Set(fmt.Sprintf("Давление 3: максимум %.0f кгс/см2", limit3))
 		}
+		if press3 < 0 {
+			gForm.Status.Set(fmt.Sprintf("Давление должно быть положительным"))
+		}
 	}
 	gForm.EntryPress3.Entry.OnSubmitted = func(str string) {
 		selectAll()
-		if err = channel3.Set(press3); err != nil {
+		if err = channel3.Set(math.Abs(press3)); err != nil {
 			fmt.Printf("Ошибка установки давления 3\n")
 			return
 		}
 		gForm.Status.Set(" ")
-		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
-		gForm.EntryPress3.Entry.SetText(fmt.Sprintf("%.1f", press3))
+		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", math.Abs(press3), err)
+		gForm.EntryPress3.Entry.SetText(fmt.Sprintf("%.1f", math.Abs(press3)))
 	}
 
 	box3 := container.NewGridWithColumns(
