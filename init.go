@@ -227,7 +227,7 @@ func (bu DescriptionBU) SetServiceMode() {
 	if s1, s2, _ := sp.GetOutputSpeed(); (s1 + s2) > 0 {
 		sp.SetSpeed(0, 0)
 		sp.SetAcceleration(0, 0)
-		time.Sleep(2 * time.Second)
+		time.Sleep(4 * time.Second)
 	}
 
 	bu.Power(false)

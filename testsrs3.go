@@ -242,10 +242,10 @@ func changeFormBU4() {
 		gForm.EntryAccel2.Entry.Enable()
 	}
 
-	if gBU.NumberDUP == 1 {
+	if gBU.NumberDD == 1 {
 		gForm.EntryPress2.Entry.Disable()
 		gForm.EntryPress3.Entry.Disable()
-	} else { //gBU.NumberDUP == 2
+	} else { //gBU.NumberDD == 2
 		gForm.EntryPress2.Entry.Enable()
 		gForm.EntryPress3.Entry.Disable()
 	}
@@ -1012,9 +1012,9 @@ func speed() fyne.CanvasObject {
 	gForm.EntryPress2.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if gBU.Variant != BU4 {
-			err = channel2.Set(press1)
+			err = channel2.Set(press2)
 		} else {
-			err = channel2BU4.Set(press1)
+			err = channel2BU4.Set(press2)
 		}
 		if err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
@@ -1050,7 +1050,7 @@ func speed() fyne.CanvasObject {
 		}
 		gForm.Status.Set(" ")
 		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", press3, err)
-		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.1f", press3))
+		gForm.EntryPress3.Entry.SetText(fmt.Sprintf("%.1f", press3))
 	}
 
 	box3 := container.NewGridWithColumns(
@@ -1367,6 +1367,8 @@ func top() fyne.CanvasObject {
 			gForm.Status.Set(msg)
 			if !ok {
 				gForm.CheckTurt.SetChecked(false)
+			} else {
+				gForm.CheckTurt.Disable() // выход из режима - перезагрузка
 			}
 
 		} else {
@@ -1383,6 +1385,12 @@ func top() fyne.CanvasObject {
 
 	checkPower := widget.NewCheck("Питание КПД", func(on bool) {
 		gBU.Power(on)
+		gForm.Status.Set(" ")
+		if on && gBU.Variant == BU4 {
+			// для БУ-4 выход из режима обслуживания - перезагрузка
+			gForm.CheckTurt.Enable()
+			gForm.CheckTurt.SetChecked(false)
+		}
 	})
 	checkPower.SetChecked(true)
 

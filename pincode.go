@@ -64,7 +64,7 @@ func setServiceModeBU4() (ok bool, logInfo string) {
 			// делаем проверку режима
 			if msg, err = can25.GetMsgByID(BU4_SYS_INFO, 2*time.Second); err == nil {
 				if msg.Data[0] == SERVICE_MODE && msg.Data[1] == 1 {
-					logInfo = fmt.Sprintf("Блок перешел в режим обслуживания.")
+					logInfo = fmt.Sprintf("Блок перешел в режим обслуживания (выход - перезагрузка).")
 					ok = true
 				} else {
 					logInfo += fmt.Sprintf(" Блок не перешел в режим обслуживания или сообщение не принято (сообщение: %X %X)\r\n", msg.Data[0], msg.Data[1])
