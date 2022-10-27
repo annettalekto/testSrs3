@@ -71,8 +71,9 @@ func main() {
 
 	// Форма
 	a := app.New()
-	w := a.NewWindow(gForm.ProgramName)
-	// w.Resize(fyne.NewSize(800, 600))
+	w := a.NewWindow(gForm.ProgramName) // с окнами у fyne проблемы
+	w.Resize(fyne.NewSize(1024, 780))   // прописать точный размер
+	w.SetFixedSize(true)                // не использовать без Resize
 	w.CenterOnScreen()
 	w.SetMaster()
 
