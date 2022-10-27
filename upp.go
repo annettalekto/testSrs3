@@ -92,7 +92,8 @@ func getErrorDescription(sCode string) string {
 		}
 	}
 
-	_, err = toml.DecodeFile("errors.toml", &data)
+	fileName := ".\\toml\\errors.toml"
+	_, err = toml.DecodeFile(fileName, &data)
 	if err != nil {
 		fmt.Println(err)
 	}

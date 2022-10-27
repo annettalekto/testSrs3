@@ -95,8 +95,9 @@ func main() {
 		for {
 			time.Sleep(1 * time.Second)
 			for _, item := range menu.Items[0].Items {
-				if item.Label == "Quit" {
+				if strings.Contains(item.Label, "Quit") {
 					item.Label = "Выход"
+					menu.Refresh()
 				}
 			}
 		}
@@ -168,13 +169,13 @@ func aboutHelp() {
 
 func abautProgramm() {
 	w := fyne.CurrentApp().NewWindow("О программе") // CurrentApp!
-	w.Resize(fyne.NewSize(400, 150))
+	w.Resize(fyne.NewSize(450, 150))
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	img := canvas.NewImageFromURI(storage.NewFileURI("ind.png"))
-	img.Resize(fyne.NewSize(66, 90)) //без изменений
-	img.Move(fyne.NewPos(10, 10))
+	img := canvas.NewImageFromURI(storage.NewFileURI("iconfile.png"))
+	img.Resize(fyne.NewSize(66, 66))
+	img.Move(fyne.NewPos(10, 30))
 
 	l0 := widget.NewLabel(gForm.ProgramName)
 	l0.Move(fyne.NewPos(80, 10))

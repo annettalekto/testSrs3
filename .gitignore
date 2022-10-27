@@ -1,9 +1,6 @@
 *.exe
 *.txt
+Icon.png
 
-#*.toml
-upp.toml
-
-toml/
 .svn/
 .vscode/
