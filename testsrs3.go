@@ -441,13 +441,13 @@ func getListCAN() fyne.CanvasObject {
 			if bytes, ok := mapDataCAN[idPressure]; ok {
 				tm, tc, gr := byteToPressure(bytes)
 				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm))
-				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТС (кг/см²):", tc))
+				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТЦ (кг/см²):", tc))
 				if gBU.Variant != BU4 {
 					data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ГР (кг/см²):", gr))
 				}
 			} else {
 				data = append(data, fmt.Sprintf("%-22s —", "Давление ТМ (кг/см²):"))
-				data = append(data, fmt.Sprintf("%-22s —", "Давление ТС (кг/см²):"))
+				data = append(data, fmt.Sprintf("%-22s —", "Давление ТЦ (кг/см²):"))
 				if gBU.Variant != BU4 {
 					data = append(data, fmt.Sprintf("%-22s —", "Давление ГР (кг/см²):"))
 				}
@@ -880,7 +880,7 @@ func speed() fyne.CanvasObject {
 	currentDistance.Set("0")
 
 	// обработка пути
-	entryMileage := newSpecialEntry("0") //20000
+	entryMileage := newSpecialEntry("0")
 	entryMileage.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
@@ -898,10 +898,8 @@ func speed() fyne.CanvasObject {
 		}
 		setDistance = uint32(d)
 	}
-	// entryMileage.Entry.OnSubmitted = func(str string) {
-	// todo дублировать установку?
-	// }
-	buttonMileage := widget.NewButton("Пуск", func() {
+
+	startMileage := func() {
 		// if 0 == setDistance { нулем оно стопиться
 		// 	gForm.Status.Set("Ошибка в поле ввода «Дистанция»")
 		// 	return
@@ -922,6 +920,14 @@ func speed() fyne.CanvasObject {
 		distanceCheck = true
 		entryMileage.Entry.SetText(fmt.Sprintf("%d", setDistance))
 		// скорость должны установить сами в поле ввода скорости
+	}
+
+	entryMileage.Entry.OnSubmitted = func(str string) {
+		selectAll()
+		startMileage()
+	}
+	buttonMileage := widget.NewButton("Пуск", func() {
+		startMileage()
 	})
 	labelMileage := widget.NewLabel("0")
 	labelMileage.Bind(currentDistance)
@@ -1068,7 +1074,7 @@ func speed() fyne.CanvasObject {
 
 	box3 := container.NewGridWithColumns(
 		3,
-		widget.NewLabel("Канал 1 (ТМ):"), widget.NewLabel("Канал 2 (ТС):"), widget.NewLabel("Канал 3 (ГР):"),
+		widget.NewLabel("Канал 1 (ТМ):"), widget.NewLabel("Канал 2 (ТЦ):"), widget.NewLabel("Канал 3 (ГР):"),
 		entryPress1, gForm.EntryPress2, gForm.EntryPress3,
 	)
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
@@ -1087,6 +1093,7 @@ func speed() fyne.CanvasObject {
 // Вых.БУ: 50В, 10В
 func outputSignals() fyne.CanvasObject {
 	var err error
+	pin := uint(0)
 
 	code := []string{"Ноль", "Единица",
 		"КЖ 1.6",
@@ -1126,113 +1133,136 @@ func outputSignals() fyne.CanvasObject {
 
 	// 10V
 	checkG := widget.NewCheck("З", func(on bool) {
+		pin = 0
 		if on {
-			err = fds.Set10V(0, true)
+			err = fds.Set10V(pin, true)
 		} else {
-			err = fds.Set10V(0, false)
+			err = fds.Set10V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 0=%v З (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: %d=%v З (%v)\n", pin, on, err)
 	})
+
 	checkY := widget.NewCheck("Ж", func(on bool) {
+		pin = 1
 		if on {
-			err = fds.Set10V(1, true)
+			err = fds.Set10V(pin, true)
 		} else {
-			err = fds.Set10V(1, false)
+			err = fds.Set10V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 1=%v Ж(%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: %d=%v Ж(%v)\n", pin, on, err)
 	})
+
 	checkRY := widget.NewCheck("КЖ", func(on bool) {
+		pin = 2
 		if on {
-			err = fds.Set10V(2, true)
+			err = fds.Set10V(pin, true)
 		} else {
-			err = fds.Set10V(2, false)
+			err = fds.Set10V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 2=%v КЖ (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: %d=%v КЖ (%v)\n", pin, on, err)
 	})
+
 	checkR := widget.NewCheck("К", func(on bool) {
+		pin = 3
 		if on {
-			err = fds.Set10V(3, true)
+			err = fds.Set10V(pin, true)
 		} else {
-			err = fds.Set10V(3, false)
+			err = fds.Set10V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 3=%v К (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: %d=%v К (%v)\n", pin, on, err)
 	})
+
 	checkW := widget.NewCheck("Б", func(on bool) {
+		pin = 4
 		if on {
-			err = fds.Set10V(4, true)
+			err = fds.Set10V(pin, true)
 		} else {
-			err = fds.Set10V(4, false)
+			err = fds.Set10V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 4=%v Б (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: %d=%v Б (%v)\n", pin, on, err)
 	})
+
 	checkEPK1 := widget.NewCheck("ЭПК1", func(on bool) {
+		pin = 5
 		if on {
-			err = fds.Set10V(5, true)
+			err = fds.Set10V(pin, true)
 		} else {
-			err = fds.Set10V(5, false)
+			err = fds.Set10V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 5=%v ЭПК1 (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: %d=%v ЭПК1 (%v)\n", pin, on, err)
 	})
-	checkIF := widget.NewCheck("ИФ", func(on bool) {
+	/*checkIF := widget.NewCheck("ИФ", func(on bool) {
 		if on {
 			err = fds.Set10V(6, true)
 		} else {
 			err = fds.Set10V(6, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 6=%v ИФ (%v)\n", on, err)
-	})
+		fmt.Printf("Двоичные выходы 10В: 6=%v ИФ (%v)\n", on, err)
+	})*/
+
 	checkTracktion := widget.NewCheck("Тяга", func(on bool) {
+		pin = 7
 		if on {
-			err = fds.Set10V(7, true)
+			err = fds.Set10V(pin, true)
 		} else {
-			err = fds.Set10V(7, false)
+			err = fds.Set10V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 50В: 7=%v Тяга (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 10В: %d=%v Тяга (%v)\n", pin, on, err)
 	})
-	gForm.BoxOut10V = container.NewVBox( /*checkTracktion,*/ checkG, checkY, checkRY, checkR, checkW, checkEPK1, checkIF)
+	gForm.BoxOut10V = container.NewVBox(checkG, checkY, checkRY, checkR, checkW, checkEPK1)
 
 	// 50V
 	checkLP := widget.NewCheck("ЛП", func(on bool) {
+		pin = uint(0)
 		if on {
-			err = fds.Set50V(1, true)
+			err = fds.Set50V(pin, true)
 		} else {
-			err = fds.Set50V(1, false)
+			err = fds.Set50V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 10В: 1=%v ЛП (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 50В: %d=%v ЛП (%v)\n", pin, on, err)
 	})
+
 	checkButtonUhod := widget.NewCheck("кн. Уход", func(on bool) {
+		pin = 2
 		if on {
-			err = fds.Set50V(3, true)
+			err = fds.Set50V(pin, true)
 		} else {
-			err = fds.Set50V(3, false)
+			err = fds.Set50V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 10В: 3=%v кн. Уход (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 50В: %d=%v кн. Уход (%v)\n", pin, on, err)
 	})
+
 	checkEPK := widget.NewCheck("ЭПК", func(on bool) {
+		pin = 4
 		if on {
-			err = fds.Set50V(5, true)
+			err = fds.Set50V(pin, true)
 		} else {
-			err = fds.Set50V(5, false)
+			err = fds.Set50V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 10В: 5=%v ЭПК (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 50В: %d=%v ЭПК (%v)\n", pin, on, err)
 	})
-	checkPowerBU := widget.NewCheck("Пит.БУ", func(on bool) {
+
+	/*checkPowerBU := widget.NewCheck("Пит.БУ", func(on bool) {
+		pin = 6
 		if on {
-			err = fds.Set50V(7, true)
+			err = fds.Set50V(pin, true)
 		} else {
-			err = fds.Set50V(7, false)
+			err = fds.Set50V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 10В: 7=%v Пит.БУ (%v)\n", on, err)
-	})
+		fmt.Printf("Двоичные выходы 50В: %d=%v Пит.БУ (%v)\n", pin, on, err)
+	})*/
+
 	checkKeyEPK := widget.NewCheck("Ключ ЭПК ", func(on bool) {
+		pin = 8
 		if on {
-			err = fds.Set50V(9, true)
+			err = fds.Set50V(pin, true)
 		} else {
-			err = fds.Set50V(9, false)
+			err = fds.Set50V(pin, false)
 		}
-		fmt.Printf("Двоичные выходы 10В: 9=%v Ключ ЭПК (%v)\n", on, err)
+		fmt.Printf("Двоичные выходы 50В: %d=%v Ключ ЭПК (%v)\n", pin, on, err)
 	})
-	gForm.BoxOut50V = container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkPowerBU, checkKeyEPK)
+
+	gForm.BoxOut50V = container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkKeyEPK)
 
 	boxOut := container.NewVBox(getTitle("    Вых. БУ:     "), checkTracktion, gForm.BoxOut10V, gForm.BoxOut50V)
 	box := container.NewHBox(boxOut, boxCode)
@@ -1240,7 +1270,7 @@ func outputSignals() fyne.CanvasObject {
 	return box
 }
 
-// Уставки, входы БУС = считать
+// Уставки, входы БУС -- считать
 func inputSignals() fyne.CanvasObject {
 	currentBU := OptionsBU(BU3PV)
 
@@ -1256,8 +1286,8 @@ func inputSignals() fyne.CanvasObject {
 	checkUhod2 := widget.NewCheck("Уход 2", nil)
 	checkPowerEPK := widget.NewCheck("Пит.ЭПК", nil)
 	checkPB2 := widget.NewCheck("РБ2", nil)
-	checkEVM := widget.NewCheck("ЭВМ", nil)
-	gForm.BoxBUS = container.NewHBox(checkPSS2, checkUhod2, checkPowerEPK, checkPB2, checkEVM)
+	checkEMV := widget.NewCheck("ЭМВ", nil)
+	gForm.BoxBUS = container.NewHBox(checkPSS2, checkUhod2, checkPowerEPK, checkPB2, checkEMV)
 
 	box := container.NewHBox(boxRelay, gForm.BoxBUS)
 
@@ -1272,7 +1302,7 @@ func inputSignals() fyne.CanvasObject {
 		checkUhod2.Enable()
 		checkPowerEPK.Enable()
 		checkPB2.Enable()
-		checkEVM.Enable()
+		checkEMV.Enable()
 	}
 
 	checkBoxDisable := func() {
@@ -1286,7 +1316,7 @@ func inputSignals() fyne.CanvasObject {
 		checkUhod2.Disable()
 		checkPowerEPK.Disable()
 		checkPB2.Disable()
-		checkEVM.Disable()
+		checkEMV.Disable()
 	}
 
 	go func() {
@@ -1306,59 +1336,59 @@ func inputSignals() fyne.CanvasObject {
 			}
 
 			if bin&0x100 == 0x100 {
-				relay1.SetChecked(true)
+				relay1.SetChecked(!true) // все сигналы в этом блоке инвертированы
 			} else {
-				relay1.SetChecked(false)
+				relay1.SetChecked(!false)
 			}
 			if bin&0x200 == 0x200 {
-				relay20.SetChecked(true)
+				relay20.SetChecked(!true)
 			} else {
-				relay20.SetChecked(false)
+				relay20.SetChecked(!false)
 			}
 			if bin&0x400 == 0x400 {
-				gForm.RelayY.SetChecked(true)
+				gForm.RelayY.SetChecked(!true)
 			} else {
-				gForm.RelayY.SetChecked(false)
+				gForm.RelayY.SetChecked(!false)
 			}
 			if bin&0x800 == 0x800 {
-				gForm.RelayRY.SetChecked(true)
+				gForm.RelayRY.SetChecked(!true)
 			} else {
-				gForm.RelayRY.SetChecked(false)
+				gForm.RelayRY.SetChecked(!false)
 			}
 			if bin&0x1000 == 0x1000 {
-				gForm.RelayU.SetChecked(true)
+				gForm.RelayU.SetChecked(!true)
 			} else {
-				gForm.RelayU.SetChecked(false)
+				gForm.RelayU.SetChecked(!false)
 			}
 			pss2, _ := fas.GetBinaryInputVal(0) // ПСС2
 			if pss2 {
-				checkPSS2.SetChecked(true)
+				checkPSS2.SetChecked(!true)
 			} else {
-				checkPSS2.SetChecked(false)
+				checkPSS2.SetChecked(!false)
 			}
 			uhod2, _ := fas.GetBinaryInputVal(1) // УХОД
 			if uhod2 {
-				checkUhod2.SetChecked(true)
+				checkUhod2.SetChecked(!true)
 			} else {
-				checkUhod2.SetChecked(false)
+				checkUhod2.SetChecked(!false)
 			}
 			epk, _ := fas.GetBinaryInputVal(2) // Пит. ЭПК
 			if epk {
-				checkPowerEPK.SetChecked(true)
+				checkPowerEPK.SetChecked(!true)
 			} else {
-				checkPowerEPK.SetChecked(false)
+				checkPowerEPK.SetChecked(!false)
 			}
 			rb2, _ := fas.GetBinaryInputVal(3) // РБC
 			if rb2 {
-				checkPB2.SetChecked(true)
+				checkPB2.SetChecked(!true)
 			} else {
-				checkPB2.SetChecked(false)
+				checkPB2.SetChecked(!false)
 			}
 			emv, _ := fas.GetBinaryInputVal(4) // ЭМВ
 			if emv {
-				checkEVM.SetChecked(true)
+				checkEMV.SetChecked(!true)
 			} else {
-				checkEVM.SetChecked(false)
+				checkEMV.SetChecked(!false)
 			}
 
 			time.Sleep(time.Second)
@@ -1532,7 +1562,7 @@ func showFormUPP() {
 		time.Sleep(5 * time.Second)
 
 		writeParamToTOML()
-		refreshDataBU() // todo легко забыть изменить
+		refreshDataBU()
 		refreshForm()
 
 		if managePower.Checked == true {

@@ -204,7 +204,16 @@ func (bu DescriptionBU) Power(on bool) {
 		time.Sleep(2 * time.Second)
 	}
 
-	fds.Set50V(6, !on)
+	if on {
+		fmt.Println("Включение БУ")
+	} else {
+		fmt.Println("Выключение БУ")
+	}
+
+	err := fds.Set50V(6, !on)
+	if err != nil {
+		fmt.Println("Ошибка установки двоичного выхода БУ!")
+	}
 	if gBU.Variant == BU4 {
 		bu.power = on
 		fds.Set50V(0, !on)
