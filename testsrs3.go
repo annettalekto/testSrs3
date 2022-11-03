@@ -73,7 +73,7 @@ func main() {
 	a := app.New()
 	w := a.NewWindow(gForm.ProgramName) // с окнами у fyne проблемы
 	w.Resize(fyne.NewSize(1024, 780))   // прописать точный размер
-	w.SetFixedSize(true)                // не использовать без Resize
+	// w.SetFixedSize(true)                // не использовать без Resize
 	w.CenterOnScreen()
 	w.SetMaster()
 
@@ -562,8 +562,10 @@ func getListCAN() fyne.CanvasObject {
 		}
 	}()
 
-	boxList := container.New(layout.NewGridWrapLayout(fyne.NewSize(290, 660)), list)
-	box := container.NewVBox(getTitle("Данные CAN:"), boxList)
+	// boxList := container.New(layout.NewGridWrapLayout(fyne.NewSize(290, 660)), list)
+
+	box := container.NewBorder(getTitle("Данные CAN:"), nil, nil, nil, list)
+	// box := container.NewVBox(getTitle("Данные CAN:"), boxList)
 
 	return box
 }
@@ -1079,7 +1081,7 @@ func speed() fyne.CanvasObject {
 	)
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
 
-	boxAll := container.NewVBox(boxSpeed, boxMileage, boxPress, dummy)
+	boxAll := container.NewVBox(layout.NewSpacer(), boxSpeed, boxMileage, boxPress, dummy, layout.NewSpacer())
 	box := container.NewHBox(dummy, boxAll, dummy)
 
 	return box
@@ -1265,7 +1267,7 @@ func outputSignals() fyne.CanvasObject {
 	gForm.BoxOut50V = container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkKeyEPK)
 
 	boxOut := container.NewVBox(getTitle("    Вых. БУ:     "), checkTracktion, gForm.BoxOut10V, gForm.BoxOut50V)
-	box := container.NewHBox(boxOut, boxCode)
+	box := container.NewVBox(layout.NewSpacer(), container.NewHBox(boxOut, boxCode), layout.NewSpacer())
 
 	return box
 }
@@ -1447,8 +1449,7 @@ func top() fyne.CanvasObject {
 
 	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, gForm.CheckTurt, layout.NewSpacer(), buttonUPP)
 
-	// box := container.NewHBox(selectDevice, checkPower, gForm.CheckTurt, buttonUPP)
-	return box // container.New(layout.NewGridWrapLayout(fyne.NewSize(400, 35)), box)
+	return box //container.New(layout.NewGridWrapLayout(fyne.NewSize(700, 40)), box)
 }
 
 func showFormUPP() {
