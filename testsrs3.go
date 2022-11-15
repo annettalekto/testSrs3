@@ -34,10 +34,10 @@ import (
 */
 
 var gForm DescriptionForm
+var config configType
 
 func main() {
-	gForm.Version, gForm.Year = "1.0.0", "2022 г."
-	gForm.ProgramName = "Электронная имитация параметров КПД"
+	config = getFyneAPP()
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -56,7 +56,7 @@ func main() {
 	can25.Run()
 	defer can25.Stop()
 
-	err = initDataBU(BU3PV)
+	err = initDataBU(config.DeviceVariant)
 	if err != nil {
 		fmt.Printf("Данные УПП не получены")
 	}
@@ -66,22 +66,26 @@ func main() {
 		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
 		err = errors.New("Ошибка инициализации ИПК")
 	}
-	// defer stopIPK()
-	// requestCAN()
 
 	// Форма
 	a := app.New()
-	w := a.NewWindow(gForm.ProgramName) // с окнами у fyne проблемы
-	w.Resize(fyne.NewSize(1024, 780))   // прописать точный размер
+	w := a.NewWindow(config.ProgramName) // с окнами у fyne проблемы
+	w.Resize(fyne.NewSize(1024, 780))    // прописать точный размер
 	// w.SetFixedSize(true)                // не использовать без Resize
+	ic, _ := fyne.LoadResourceFromPath(config.Icon)
+	w.SetIcon(ic)
 	w.CenterOnScreen()
 	w.SetMaster()
 
+	if config.Theme == "dark" {
+		a.Settings().SetTheme(theme.DarkTheme())
+	} else {
+		a.Settings().SetTheme(theme.LightTheme())
+	}
+
 	menu := fyne.NewMainMenu(
 		fyne.NewMenu("Файл",
-			// a quit item will be appended to our first menu
-			fyne.NewMenuItem("Тема", func() { changeTheme(a) }),
-			// fyne.NewMenuItem("Выход", func() { a.Quit() }),
+			fyne.NewMenuItem("Тема", func() { changeTheme() }),
 		),
 
 		fyne.NewMenu("Справка",
@@ -131,8 +135,6 @@ func main() {
 
 	box := container.NewVSplit(box4, gStatusLabel)
 
-	// showFormUPP()
-
 	// пробуем получить данные с блока
 	if err := readUPPfromBU(); err == nil {
 		gForm.Status.Set("УПП получены с блока")
@@ -149,16 +151,21 @@ func main() {
 //								О программе
 //---------------------------------------------------------------------------//
 
-var gCurrentTheme bool
+// сменить тему
+func changeTheme() {
 
-func changeTheme(a fyne.App) {
-	gCurrentTheme = !gCurrentTheme
-
-	if gCurrentTheme {
-		a.Settings().SetTheme(theme.DarkTheme())
-	} else {
-		a.Settings().SetTheme(theme.LightTheme())
+	switch config.Theme {
+	case "light":
+		fyne.CurrentApp().Settings().SetTheme(theme.DarkTheme())
+		config.Theme = "dark"
+	case "dark":
+		fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
+		config.Theme = "light"
+	default:
+		fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
+		config.Theme = "light"
 	}
+	writeFyneAPP(config)
 }
 
 func aboutHelp() {
@@ -174,20 +181,19 @@ func abautProgramm() {
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
-	img := canvas.NewImageFromURI(storage.NewFileURI("iconfile.png"))
+	img := canvas.NewImageFromURI(storage.NewFileURI("Logo.png"))
 	img.Resize(fyne.NewSize(66, 66))
 	img.Move(fyne.NewPos(10, 30))
 
-	l0 := widget.NewLabel(gForm.ProgramName)
+	l0 := widget.NewLabel(config.ProgramName)
 	l0.Move(fyne.NewPos(80, 10))
-	l1 := widget.NewLabel(fmt.Sprintf("Версия %s", gForm.Version))
+	l1 := widget.NewLabel(fmt.Sprintf("Версия %s.%d", config.Version, config.Build))
 	l1.Move(fyne.NewPos(80, 40))
-	l2 := widget.NewLabel(fmt.Sprintf("© ПАО «Электромеханика», %s", gForm.Year))
+	l2 := widget.NewLabel(fmt.Sprintf("© ПАО «Электромеханика», %s", config.Year))
 	l2.Move(fyne.NewPos(80, 70))
 
 	box := container.NewWithoutLayout(img, l0, l1, l2)
 
-	// w.SetContent(fyne.NewContainerWithLayout(layout.NewCenterLayout(), box))
 	w.SetContent(box)
 	w.Show() // ShowAndRun -- panic!
 }
@@ -206,8 +212,6 @@ func getTitle(str string) *widget.Label {
 // (при смене уставок в упп нужно менять их на экране или
 // скрыть некоторые элементы при смене типа болка)
 type DescriptionForm struct {
-	Version, Year, ProgramName string
-
 	Status binding.String // строка (внизу) для ошибок, подсказок и др. инфы
 
 	RelayY  *widget.Check // уставки скоростей
@@ -315,7 +319,6 @@ var gBuErrors []int
 func safeError(data [8]byte) {
 	var code int
 
-	// mu1.Lock()
 	if data[0] == 1 { // код ошибки установлен
 		code = (int(data[2]) << 8) | int(data[1]) // todo проверить на диапазон?
 	}
@@ -325,7 +328,6 @@ func safeError(data [8]byte) {
 		}
 	}
 	gBuErrors = append(gBuErrors, code)
-	// mu1.Unlock()
 }
 
 func getDataCAN() map[uint32][8]byte { // переименовать todo
@@ -375,11 +377,10 @@ func getListCAN() fyne.CanvasObject {
 	// обновление данных
 	go func() {
 		for {
-			// fmt.Println("Подготовка данных CAN")
-			data = nil // todo выводить только то, что есть в CAN? без второй сорости и тд?
+			data = nil
 			mapDataCAN := getDataCAN()
 
-			t := byteToTimeBU(mapDataCAN[idTimeBU]) // todo concurrent map read and map write
+			t := byteToTimeBU(mapDataCAN[idTimeBU])
 			data = append(data, fmt.Sprintf("Время БУ:  %s", t.Format("02.01.2006 15:04")))
 
 			if gBU.Variant == BU4 {
@@ -402,21 +403,13 @@ func getListCAN() fyne.CanvasObject {
 				}
 			}
 
-			// data = append(data, " ")
-
 			if len(gBuErrors) > 0 {
-				// mu1.Lock()
 				buErrors := append(gBuErrors)
 				gBuErrors = nil
-				// mu1.Unlock()
 
 				if len(buErrors) > 0 {
-					// data = append(data, " ")
 					data = append(data, "Ошибки:")
-					// var temp []int
-					// for errorcode := range gBuErrors {
-					// temp = append(temp, int(errorcode))
-					// }
+
 					sort.Ints(buErrors)
 					for _, x := range buErrors {
 						if x != 0 {
@@ -455,17 +448,17 @@ func getListCAN() fyne.CanvasObject {
 
 			if bytes, ok := mapDataCAN[idDistance]; ok {
 				u := byteDistance(bytes)
-				data = append(data, fmt.Sprintf("%-22s %d", "Дистанция (м):", u)) // число на 22
+				data = append(data, fmt.Sprintf("%-22s %d", "Дистанция (м):", u))
 			} else {
 				data = append(data, fmt.Sprintf("%-22s —", "Дистанция (м):"))
 			}
 
-			data = append(data, " ") // отступ
+			data = append(data, " ") // просто отступ
 
 			if gBU.Variant != BU4 {
 				if bytes, ok := mapDataCAN[idALS]; ok {
 					_, str := byteToALS(bytes)
-					data = append(data, fmt.Sprintf("%-16s %s", "АЛС:", str)) // текст на 16
+					data = append(data, fmt.Sprintf("%-16s %s", "АЛС:", str))
 					if (bytes[0] & 0x40) == 0x40 {
 						str = "1"
 					} else {
@@ -539,7 +532,7 @@ func getListCAN() fyne.CanvasObject {
 					str = "0"
 				}
 				if gBU.Variant != BU4 {
-					data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 1 каб.:", str)) // разобщительный кран ЭПК 1 каб
+					data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 1 каб.:", str))
 					if (bytes[2] & 0x10) == 0x10 {
 						str = "1"
 					} else {
@@ -562,10 +555,7 @@ func getListCAN() fyne.CanvasObject {
 		}
 	}()
 
-	// boxList := container.New(layout.NewGridWrapLayout(fyne.NewSize(290, 660)), list)
-
 	box := container.NewBorder(getTitle("Данные CAN:"), nil, nil, nil, list)
-	// box := container.NewVBox(getTitle("Данные CAN:"), boxList)
 
 	return box
 }
@@ -598,15 +588,11 @@ func requestCAN() {
 
 func getCAN() {
 
-	// timeCheckDone := make(chan int) // признак того что результат готов
-
 	go func() {
 		stop := false
 		ch, _ := can25.GetMsgChannelCopy()
 
 		for !stop {
-			// получение данных
-
 			select {
 			case msg, ok := <-ch:
 				if !ok { //при закрытом канале
@@ -624,17 +610,11 @@ func getCAN() {
 					}
 					mu.Unlock()
 
-					// defer can25.CloseMsgChannelCopy(idx)
-
 				}
 			default:
 			}
 			runtime.Gosched()
-
-			// обновление данных
-			// time.Sleep(200 * time.Millisecond)
 		}
-		// timeCheckDone <- 1
 	}()
 }
 
@@ -646,7 +626,6 @@ func newSpecialEntry(initValue string) (e *numericalEntry) {
 	e = newNumericalEntry()
 	e.Entry.Wrapping = fyne.TextTruncate
 	e.Entry.TextStyle.Monospace = true
-	// e.Entry.SetPlaceHolder(placeHolder)
 	e.Entry.SetText(initValue)
 	return e
 }
@@ -657,10 +636,8 @@ func speed() fyne.CanvasObject {
 
 	// ------------------------- box 1 ----------------------------
 
-	separately := binding.NewBool() // cовместное-раздельное управление
+	separately := binding.NewBool() // cовместное или раздельное управление
 	direction := uint8(ipk.MotionOnward)
-	// direction1 := uint8(ipk.MotionOnward)
-	// direction2 := uint8(ipk.MotionOnward)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
 	dummy := widget.NewLabel("")
 
@@ -678,9 +655,9 @@ func speed() fyne.CanvasObject {
 			gForm.Status.Set("Ошибка в поле ввода «Скорость 1»")
 			return
 		}
-		if sep, _ := separately.Get(); !sep { // !не раздельное управление
-			speed2 = speed1                // тоже в переменную
-			gForm.EntrySpeed2.SetText(str) // и в поле второго канала скорости
+		if sep, _ := separately.Get(); !sep {
+			speed2 = speed1
+			gForm.EntrySpeed2.SetText(str)
 		}
 	}
 	entrySpeed1.Entry.OnSubmitted = func(str string) {
@@ -796,7 +773,6 @@ func speed() fyne.CanvasObject {
 
 	// обработка направления
 	directionChoice := []string{"Вперёд", "Назад"}
-	// var selectDirection1, selectDirection2 *widget.Select
 
 	radioDirection := widget.NewRadioGroup(directionChoice, func(s string) {
 		if s == "Вперёд" {
@@ -814,53 +790,10 @@ func speed() fyne.CanvasObject {
 	radioDirection.Horizontal = true
 	radioDirection.SetSelected("Вперёд")
 
-	/*selectDirection1 = widget.NewSelect(directionChoice, func(s string) {
-		sep, _ := separately.Get()
-		if s == "Вперёд" {
-			direction1 = ipk.MotionOnward
-			if !sep && selectDirection2.SelectedIndex() != 0 {
-				selectDirection2.SetSelectedIndex(0)
-			}
-		} else {
-			direction1 = ipk.MotionBackwards
-			if !sep && selectDirection1.SelectedIndex() != 1 {
-				selectDirection2.SetSelectedIndex(1)
-			}
-		}
-		if err = sp.SetMotion(direction1); err != nil { // todo должно быть два напревления
-			gForm.Status.Set("Ошибка установки направления движения")
-			return
-		}
-		fmt.Printf("Направление: %s\n", s)
-		gForm.Status.Set(" ")
-	})*/
-	/*selectDirection2 = widget.NewSelect(directionChoice, func(s string) {
-		sep, _ := separately.Get()
-		if s == "Вперёд" {
-			direction2 = ipk.MotionOnward
-			if !sep && selectDirection2.SelectedIndex() != 0 {
-				selectDirection2.SetSelectedIndex(0)
-			}
-		} else {
-			direction2 = ipk.MotionBackwards
-			if !sep && selectDirection1.SelectedIndex() != 1 {
-				selectDirection1.SetSelectedIndex(1)
-			}
-		}
-		if err = sp.SetMotion(direction2); err != nil {
-			gForm.Status.Set("Ошибка установки направления движения")
-			return
-		}
-		fmt.Printf("Направление: %s\n", s)
-		gForm.Status.Set(" ")
-	})
-	selectDirection1.SetSelectedIndex(0) //"Вперёд"
-	selectDirection2.SetSelectedIndex(0) //"Вперёд"
-	*/
 	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
 	labelParameters := widget.NewLabel("")
-	gForm.Parameters = binding.NewString() //todo в init?
+	gForm.Parameters = binding.NewString()
 	labelParameters.Bind(gForm.Parameters)
 	gForm.Parameters.Set(fmt.Sprintf("Число зубьев %d, диаметр бандажа %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
 
@@ -869,7 +802,6 @@ func speed() fyne.CanvasObject {
 		dummy, widget.NewLabel("Канал 1"), widget.NewLabel("Канал 2"),
 		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, gForm.EntrySpeed2,
 		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, gForm.EntryAccel2,
-		// widget.NewLabel("Направление:"), selectDirection1, selectDirection2,
 	)
 
 	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck, radioDirection, labelParameters)
@@ -902,10 +834,7 @@ func speed() fyne.CanvasObject {
 	}
 
 	startMileage := func() {
-		// if 0 == setDistance { нулем оно стопиться
-		// 	gForm.Status.Set("Ошибка в поле ввода «Дистанция»")
-		// 	return
-		// }
+
 		if err = sp.SetLimitWay(setDistance); err != nil {
 			fmt.Printf("Ошибка установки пути\n")
 			gForm.Status.Set("Ошибка установки пути")
@@ -1091,7 +1020,7 @@ func speed() fyne.CanvasObject {
 // 						ИНТЕРФЕЙС: ФДС сигналы
 //---------------------------------------------------------------------------//
 
-// коды РЦ (Сигналы ИФ) +
+// коды РЦ (Сигналы ИФ)
 // Вых.БУ: 50В, 10В
 func outputSignals() fyne.CanvasObject {
 	var err error
@@ -1193,14 +1122,6 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v ЭПК1 (%v)\n", pin, on, err)
 	})
-	/*checkIF := widget.NewCheck("ИФ", func(on bool) {
-		if on {
-			err = fds.Set10V(6, true)
-		} else {
-			err = fds.Set10V(6, false)
-		}
-		fmt.Printf("Двоичные выходы 10В: 6=%v ИФ (%v)\n", on, err)
-	})*/
 
 	checkTracktion := widget.NewCheck("Тяга", func(on bool) {
 		pin = 7
@@ -1244,16 +1165,6 @@ func outputSignals() fyne.CanvasObject {
 		fmt.Printf("Двоичные выходы 50В: %d=%v ЭПК (%v)\n", pin, on, err)
 	})
 
-	/*checkPowerBU := widget.NewCheck("Пит.БУ", func(on bool) {
-		pin = 6
-		if on {
-			err = fds.Set50V(pin, true)
-		} else {
-			err = fds.Set50V(pin, false)
-		}
-		fmt.Printf("Двоичные выходы 50В: %d=%v Пит.БУ (%v)\n", pin, on, err)
-	})*/
-
 	checkKeyEPK := widget.NewCheck("Ключ ЭПК ", func(on bool) {
 		pin = 8
 		if on {
@@ -1272,7 +1183,7 @@ func outputSignals() fyne.CanvasObject {
 	return box
 }
 
-// Уставки, входы БУС -- считать
+// Уставки, входы БУС
 func inputSignals() fyne.CanvasObject {
 	currentBU := OptionsBU(BU3PV)
 
@@ -1283,7 +1194,6 @@ func inputSignals() fyne.CanvasObject {
 	gForm.RelayU = widget.NewCheck(fmt.Sprintf("%d", gBU.RelayU), nil)   // ~10 V(упр)
 	boxRelay := container.NewHBox(relay1, relay20, gForm.RelayY, gForm.RelayRY, gForm.RelayU)
 
-	// labelBUS := widget.NewLabel("Входы БУС:")
 	checkPSS2 := widget.NewCheck("ПСС2", nil)
 	checkUhod2 := widget.NewCheck("Уход 2", nil)
 	checkPowerEPK := widget.NewCheck("Пит.ЭПК", nil)
@@ -1332,10 +1242,7 @@ func inputSignals() fyne.CanvasObject {
 				currentBU = gBU.Variant
 			}
 
-			bin, err := fas.UintGetBinaryInput()
-			if err != nil {
-				// fmt.Printf("Ошибка получения двоичного сигнала\n") отладка
-			}
+			bin, _ := fas.UintGetBinaryInput()
 
 			if bin&0x100 == 0x100 {
 				relay1.SetChecked(!true) // все сигналы в этом блоке инвертированы
@@ -1406,7 +1313,8 @@ func inputSignals() fyne.CanvasObject {
 
 func top() fyne.CanvasObject {
 
-	gForm.CheckTurt = widget.NewCheck("TURT", func(on bool) { // Режим обслуживания
+	// Режим обслуживания
+	gForm.CheckTurt = widget.NewCheck("TURT", func(on bool) {
 		if gBU.Variant == BU4 {
 			ok, msg := setServiceModeBU4()
 			gForm.Status.Set(msg)
@@ -1423,6 +1331,8 @@ func top() fyne.CanvasObject {
 	// Смена блока туть
 	var selectDevice *widget.Select
 	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
+		config.DeviceVariant = OptionsBU(selectDevice.SelectedIndex())
+		writeFyneAPP(config)
 		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
 		refreshForm()
 	})
@@ -1449,7 +1359,7 @@ func top() fyne.CanvasObject {
 
 	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, gForm.CheckTurt, layout.NewSpacer(), buttonUPP)
 
-	return box //container.New(layout.NewGridWrapLayout(fyne.NewSize(700, 40)), box)
+	return box
 }
 
 func showFormUPP() {
@@ -1470,7 +1380,6 @@ func showFormUPP() {
 	} else {
 		statusLabel.SetText(err.Error())
 	}
-	// statusLabel.SetText("УПП считаны из файла")
 
 	var temp []int
 	for n := range gUPP {
@@ -1512,7 +1421,6 @@ func showFormUPP() {
 		for number, upp := range gUPP {
 			paramEntry[number].SetText(upp.Value)
 		}
-		// refreshForm() todo
 	})
 
 	// записать то что на форме в БУ
@@ -1557,7 +1465,7 @@ func showFormUPP() {
 
 		// сделать чтение упп из бу и сравнить todo
 		// readUPPfromBU()
-		// if gUPP != tempupp {
+		// if gUPP сравнить tempupp {
 		// 	statusLabel.SetText("error")
 		// }
 		time.Sleep(5 * time.Second)

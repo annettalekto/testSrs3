@@ -186,7 +186,6 @@ func InitFreqIpkChannel() (err error) {
 			for {
 				fcs.UpdateFreqDataUSB()
 				time.Sleep(time.Second / 4)
-				// fmt.Printf("4SP ")
 			}
 		}()
 	} else {
@@ -230,9 +229,7 @@ func (bu DescriptionBU) Turt(on bool) {
 
 // SetServiceMode перейти в режим обслуживания
 func (bu DescriptionBU) SetServiceMode() {
-	// if bu.turt && bu.power {
-	// 	return // режим установлен на главной форме
-	// }
+
 	if s1, s2, _ := sp.GetOutputSpeed(); (s1 + s2) > 0 {
 		sp.SetSpeed(0, 0)
 		sp.SetAcceleration(0, 0)
@@ -248,9 +245,7 @@ func (bu DescriptionBU) SetServiceMode() {
 
 // SetOperateMode рабочий режим
 func (bu DescriptionBU) SetOperateMode() {
-	// if !bu.turt && bu.power {
-	// 	return // режим установлен
-	// }
+
 	bu.Power(false)
 	bu.Turt(false)
 	time.Sleep(time.Second)

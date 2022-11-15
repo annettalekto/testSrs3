@@ -3,7 +3,7 @@ module github.com/annettalekto/testSrs3
 go 1.18
 
 require (
-	fyne.io/fyne/v2 v2.2.2
+	fyne.io/fyne/v2 v2.2.4
 	github.com/amdf/ixxatvci3 v0.1.6
 )
 
