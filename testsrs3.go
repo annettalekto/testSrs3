@@ -403,21 +403,6 @@ func getListCAN() fyne.CanvasObject {
 				}
 			}
 
-			if len(gBuErrors) > 0 {
-				buErrors := append(gBuErrors)
-				gBuErrors = nil
-
-				if len(buErrors) > 0 {
-					data = append(data, "Ошибки:")
-
-					sort.Ints(buErrors)
-					for _, x := range buErrors {
-						if x != 0 {
-							data = append(data, fmt.Sprintf("H%d", x))
-						}
-					}
-				}
-			}
 			data = append(data, " ")
 
 			if bytes, ok := mapDataCAN[idSpeed1]; ok {
@@ -547,6 +532,24 @@ func getListCAN() fyne.CanvasObject {
 				if gBU.Variant != BU4 {
 					data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 1 каб.:"))
 					data = append(data, fmt.Sprintf("%-16s —", "Кран ЭПК 2 каб.:"))
+				}
+			}
+
+			data = append(data, " ")
+
+			if len(gBuErrors) > 0 {
+				buErrors := append(gBuErrors)
+				gBuErrors = nil
+
+				if len(buErrors) > 0 {
+					data = append(data, "Ошибки:")
+
+					sort.Ints(buErrors)
+					for _, x := range buErrors {
+						if x != 0 {
+							data = append(data, fmt.Sprintf("H%d", x))
+						}
+					}
 				}
 			}
 
