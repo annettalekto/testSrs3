@@ -1066,6 +1066,8 @@ func outputSignals() fyne.CanvasObject {
 	boxCode := container.NewVBox(getTitle("Коды РЦ:      "), gForm.Radio)
 
 	// 10V
+	// out10V, _ := fds.UintGetOutput10V()
+
 	checkG := widget.NewCheck("З", func(on bool) {
 		pin = 0
 		if on {
@@ -1075,6 +1077,12 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v З (%v)\n", pin, on, err)
 	})
+	fds.Set10V(0, false) // предустановка
+	checkG.SetChecked(false)
+	// pin10V := uint8(0x01)
+	// if (out10V & pin10V) == pin10V {
+	// 	checkG.SetChecked(true)
+	// }
 
 	checkY := widget.NewCheck("Ж", func(on bool) {
 		pin = 1
@@ -1085,6 +1093,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v Ж(%v)\n", pin, on, err)
 	})
+	fds.Set10V(1, false)
+	checkY.SetChecked(false)
 
 	checkRY := widget.NewCheck("КЖ", func(on bool) {
 		pin = 2
@@ -1095,6 +1105,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v КЖ (%v)\n", pin, on, err)
 	})
+	fds.Set10V(2, false)
+	checkRY.SetChecked(false)
 
 	checkR := widget.NewCheck("К", func(on bool) {
 		pin = 3
@@ -1105,6 +1117,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v К (%v)\n", pin, on, err)
 	})
+	fds.Set10V(3, false)
+	checkR.SetChecked(false)
 
 	checkW := widget.NewCheck("Б", func(on bool) {
 		pin = 4
@@ -1115,6 +1129,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v Б (%v)\n", pin, on, err)
 	})
+	fds.Set10V(4, false)
+	checkW.SetChecked(false)
 
 	checkEPK1 := widget.NewCheck("ЭПК1", func(on bool) {
 		pin = 5
@@ -1125,6 +1141,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v ЭПК1 (%v)\n", pin, on, err)
 	})
+	fds.Set10V(5, false)
+	checkEPK1.SetChecked(false)
 
 	checkTracktion := widget.NewCheck("Тяга", func(on bool) {
 		pin = 7
@@ -1135,6 +1153,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v Тяга (%v)\n", pin, on, err)
 	})
+	fds.Set10V(7, false)
+	checkTracktion.SetChecked(false)
 	gForm.BoxOut10V = container.NewVBox(checkG, checkY, checkRY, checkR, checkW, checkEPK1)
 
 	// 50V
@@ -1157,6 +1177,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 50В: %d=%v кн. Уход (%v)\n", pin, on, err)
 	})
+	fds.Set50V(2, false)
+	checkButtonUhod.SetChecked(false)
 
 	checkEPK := widget.NewCheck("ЭПК", func(on bool) {
 		pin = 4
@@ -1167,6 +1189,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 50В: %d=%v ЭПК (%v)\n", pin, on, err)
 	})
+	fds.Set50V(4, false)
+	checkEPK.SetChecked(false)
 
 	checkKeyEPK := widget.NewCheck("Ключ ЭПК ", func(on bool) {
 		pin = 8
@@ -1177,6 +1201,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 50В: %d=%v Ключ ЭПК (%v)\n", pin, on, err)
 	})
+	fds.Set50V(8, false)
+	checkKeyEPK.SetChecked(false)
 
 	gForm.BoxOut50V = container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkKeyEPK)
 
