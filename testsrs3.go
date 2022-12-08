@@ -642,6 +642,7 @@ func speed() fyne.CanvasObject {
 	separately := binding.NewBool() // cовместное или раздельное управление
 	direction := uint8(ipk.MotionOnward)
 	speed1, speed2, accel1, accel2 := float64(0), float64(0), float64(0), float64(0)
+	speedLimit := 1000
 	dummy := widget.NewLabel("")
 
 	// обработка скорости
@@ -662,8 +663,17 @@ func speed() fyne.CanvasObject {
 			speed2 = speed1
 			gForm.EntrySpeed2.SetText(str)
 		}
+		if speed1 > float64(speedLimit) {
+			gForm.Status.Set(fmt.Sprintf("Скорость 1: максимум %d км/ч", speedLimit))
+		}
+		if speed2 > float64(speedLimit) {
+			gForm.Status.Set(fmt.Sprintf("Скорость 2: максимум %d км/ч", speedLimit))
+		}
 	}
 	entrySpeed1.Entry.OnSubmitted = func(str string) {
+		if speed1 > float64(speedLimit) || speed2 > float64(speedLimit) {
+			gForm.Status.Set("Ошибка установки скорости")
+		}
 		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
@@ -695,8 +705,17 @@ func speed() fyne.CanvasObject {
 			speed1 = speed2
 			entrySpeed1.Entry.SetText(str)
 		}
+		if speed1 > float64(speedLimit) {
+			gForm.Status.Set(fmt.Sprintf("Скорость 1: максимум %d км/ч", speedLimit))
+		}
+		if speed2 > float64(speedLimit) {
+			gForm.Status.Set(fmt.Sprintf("Скорость 2: максимум %d км/ч", speedLimit))
+		}
 	}
 	gForm.EntrySpeed2.Entry.OnSubmitted = func(str string) {
+		if speed1 > float64(speedLimit) || speed2 > float64(speedLimit) {
+			gForm.Status.Set("Ошибка установки скорости")
+		}
 		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
@@ -717,6 +736,7 @@ func speed() fyne.CanvasObject {
 	// обработка ускорения
 	entryAccel1 := newSpecialEntry("0.00")
 	gForm.EntryAccel2 = newSpecialEntry("0.00")
+	accelLimit := float64(100)
 
 	entryAccel1.Entry.OnChanged = func(str string) {
 		if str == "" {
@@ -732,8 +752,18 @@ func speed() fyne.CanvasObject {
 			accel2 = accel1
 			gForm.EntryAccel2.Entry.SetText(str)
 		}
+		if accel1 > accelLimit {
+			gForm.Status.Set(fmt.Sprintf("Ускорение 1: максимум %.0f км/ч", accelLimit))
+		}
+		if accel2 > accelLimit {
+			gForm.Status.Set(fmt.Sprintf("Ускорение 2: максимум %.0f км/ч", accelLimit))
+		}
 	}
 	entryAccel1.Entry.OnSubmitted = func(str string) {
+		if accel1 > accelLimit || accel2 > accelLimit {
+			gForm.Status.Set("Ошибка установки ускорения")
+			return
+		}
 		selectAll()
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
@@ -760,8 +790,18 @@ func speed() fyne.CanvasObject {
 			accel1 = accel2
 			entryAccel1.Entry.SetText(str)
 		}
+		if accel1 > accelLimit {
+			gForm.Status.Set(fmt.Sprintf("Ускорение 1: максимум %.0f км/ч", accelLimit))
+		}
+		if accel2 > accelLimit {
+			gForm.Status.Set(fmt.Sprintf("Ускорение 2: максимум %.0f км/ч", accelLimit))
+		}
 	}
 	gForm.EntryAccel2.Entry.OnSubmitted = func(str string) {
+		if accel1 > accelLimit || accel2 > accelLimit {
+			gForm.Status.Set("Ошибка установки ускорения")
+			return
+		}
 		selectAll()
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
@@ -815,6 +855,7 @@ func speed() fyne.CanvasObject {
 	startDistance, setDistance := uint32(0), uint32(0)
 	currentDistance := binding.NewString()
 	currentDistance.Set("0")
+	distanceLimit := uint32(1000000)
 
 	// обработка пути
 	entryMileage := newSpecialEntry("0")
@@ -822,7 +863,7 @@ func speed() fyne.CanvasObject {
 		if str == "" {
 			return
 		}
-		if strings.Contains(str, ".") {
+		if strings.Contains(str, ".") { // запятая?
 			gForm.Status.Set("Ошибка в поле ввода «Дистанция»: введите целое число")
 			return
 		}
@@ -834,10 +875,14 @@ func speed() fyne.CanvasObject {
 			return
 		}
 		setDistance = uint32(d)
+
+		if setDistance > distanceLimit {
+			gForm.Status.Set(fmt.Sprintf("Дистанция: максимум %d км/ч", distanceLimit))
+		}
 	}
 
 	startMileage := func() {
-
+		// не давать установить больше лимита. добавить кнопку стоп
 		if err = sp.SetLimitWay(setDistance); err != nil {
 			fmt.Printf("Ошибка установки пути\n")
 			gForm.Status.Set("Ошибка установки пути")
@@ -856,10 +901,6 @@ func speed() fyne.CanvasObject {
 		// скорость должны установить сами в поле ввода скорости
 	}
 
-	entryMileage.Entry.OnSubmitted = func(str string) {
-		selectAll()
-		startMileage()
-	}
 	buttonMileage := widget.NewButton("Пуск", func() {
 		startMileage()
 	})
@@ -1062,6 +1103,7 @@ func outputSignals() fyne.CanvasObject {
 		fmt.Printf("Код РЦ: %s (%v)\n", s, err)
 	})
 	gForm.Radio.SetSelected("Ноль")
+	fds.SetIF(ipk.IFDisable) // предустановка
 	// radio.Horizontal = true
 	boxCode := container.NewVBox(getTitle("Коды РЦ:      "), gForm.Radio)
 
@@ -1305,6 +1347,7 @@ func inputSignals() fyne.CanvasObject {
 				checkPSS2.SetChecked(!false)
 			}
 			uhod2, _ := fas.GetBinaryInputVal(1) // УХОД
+			// (проверить: задать скорость больше 2 км/ч без тяги)
 			if uhod2 {
 				checkUhod2.SetChecked(!true)
 			} else {
