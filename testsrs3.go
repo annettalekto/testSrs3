@@ -673,6 +673,7 @@ func speed() fyne.CanvasObject {
 	entrySpeed1.Entry.OnSubmitted = func(str string) {
 		if speed1 > float64(speedLimit) || speed2 > float64(speedLimit) {
 			gForm.Status.Set("Ошибка установки скорости")
+			return
 		}
 		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
@@ -881,31 +882,61 @@ func speed() fyne.CanvasObject {
 		}
 	}
 
-	startMileage := func() {
-		// не давать установить больше лимита. добавить кнопку стоп
+	startMileage := func() bool {
+		if setDistance > distanceLimit {
+			gForm.Status.Set("Ошибка установки пути")
+			return false
+		}
 		if err = sp.SetLimitWay(setDistance); err != nil {
 			fmt.Printf("Ошибка установки пути\n")
 			gForm.Status.Set("Ошибка установки пути")
-			return
+			return false
 		}
 		time.Sleep(1 * time.Second) // не успевает сбросится счетчик
 		if startDistance, _, err = sp.GetWay(); err != nil {
 			fmt.Printf("Ошибка: не получено значение пути с ИПК\n")
 			gForm.Status.Set("Ошибка: не получено значение пути с ИПК")
-			return
+			return false
 		}
 		gForm.Status.Set(" ")
 		fmt.Printf("Путь: %d м (%v)\n", setDistance, err)
 		distanceCheck = true
 		entryMileage.Entry.SetText(fmt.Sprintf("%d", setDistance))
 		// скорость должны установить сами в поле ввода скорости
+		return true
 	}
 
-	buttonMileage := widget.NewButton("Пуск", func() {
+	stopMileage := func() {
+		setDistance = 0
+		sp.SetSpeed(0, 0)
+		sp.SetAcceleration(0, 0)
+		time.Sleep(1 * time.Second)
 		startMileage()
+		currentDistance.Set("0")
+	}
+
+	// запуск по нажатию кнопки
+	var buttonMileage *widget.Button
+	buttonMileage = widget.NewButton("Старт", func() {
+		if !distanceCheck {
+			if startMileage() {
+				buttonMileage.SetText("Стоп")
+			}
+		} else {
+			stopMileage()
+		}
 	})
 	labelMileage := widget.NewLabel("0")
 	labelMileage.Bind(currentDistance)
+
+	// запуск по нажатию Enter
+	entryMileage.Entry.OnSubmitted = func(str string) {
+		if !distanceCheck {
+			if startMileage() {
+				buttonMileage.SetText("Стоп")
+			}
+		}
+	}
 
 	box2 := container.NewGridWithColumns(
 		3,
@@ -931,6 +962,7 @@ func speed() fyne.CanvasObject {
 
 				if m >= setDistance {
 					distanceCheck = false
+					buttonMileage.SetText("Старт")
 					fmt.Println("Дистанция пройдена")
 				}
 			}
