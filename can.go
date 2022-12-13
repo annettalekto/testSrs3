@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/amdf/ixxatvci3/candev"
@@ -53,17 +54,28 @@ func setTimeBU(h, m, s int) (err error) {
 	return
 }
 
-/*func setCurrentTimeBU() (err error) {
+func checkCAN() (err error) {
 
-	dt := time.Now()
-	h, _ := strconv.Atoi(dt.Format("15"))
-	m, _ := strconv.Atoi(dt.Format("4"))
-	s, _ := strconv.Atoi(dt.Format("5"))
+	// 5f9 валятся при загрузке блока
+	ok, e := can25.GetMsgRTR(0x5F9, 1*time.Second)
+	if e != nil {
+		if strings.Contains(e.Error(), "0 msgs") { //timeout (0 msgs) - ничего не пришло, скорее всего выкл пит
+			err = errors.New("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
+			return
+		}
+	} else if ok {
+		err = errors.New("Перейдите в режим поездки (нажмите «П» на БУ)") // идет загрузка или не включен режим поездки
+		return
+	}
 
-	err = setTimeBU(h, m, s)
+	// С7 сообщение времени, всегда отправляются
+	_, e = can25.GetMsgByID(0xC7, 1*time.Second)
+	if e != nil {
+		err = errors.New("Нет сообщений CAN")
+	}
 
 	return
-}*/
+}
 
 // запрос x5C1 RTR=0 len=1 номер УПП
 // ответ  x5C0 len=5 номер УПП + 4 байта данные мл.байтом вперед

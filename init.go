@@ -88,7 +88,8 @@ func refreshDataIPK() (err error) {
 	return
 }
 
-func initIPK() (err error) {
+func initIPK() (errA, errB, errF bool, err error) {
+	errF, errB, errA = true, true, true
 
 	ipkBox.AnalogDev = new(ipk.AnalogDevice)
 	ipkBox.BinDev = new(ipk.BinaryDevice)
@@ -96,16 +97,21 @@ func initIPK() (err error) {
 
 	if !ipkBox.AnalogDev.Open() { //открываем ФАС-3
 		err = errors.New("ошибка инициализации ФАС")
-		return
+		errA = false
 	}
 	if !ipkBox.BinDev.Open() { //открываем ФДС-3
 		err = errors.New("ошибка инициализации ФДС")
-		return
+		errB = false
 	}
 	if !ipkBox.FreqDev.Open() { //открываем ФЧС-3
 		err = errors.New("ошибка инициализации ФЧС")
+		errF = false
+	}
+
+	if !errA || !errB || !errF {
 		return
 	}
+
 	fas = ipkBox.AnalogDev
 	fds = ipkBox.BinDev
 	fcs = ipkBox.FreqDev
@@ -173,6 +179,12 @@ func initIPK() (err error) {
 		err = errors.New("ошибка инициализации ЦАП 9: " + err.Error())
 		return
 	}
+
+	channel1.Set(0)
+	channel2.Set(0)
+	channel3.Set(0)
+	channel1BU4.Set(0)
+	channel2BU4.Set(0)
 
 	return
 }

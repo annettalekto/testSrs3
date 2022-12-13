@@ -37,6 +37,7 @@ var gForm DescriptionForm
 var config configType
 
 func main() {
+	errAnalogIPK, errBinIPK, errFreqIPK, errConfig := true, true, true, true // важные ошибки
 	config = getFyneAPP()
 
 	defer func() {
@@ -58,13 +59,13 @@ func main() {
 
 	err = initDataBU(config.DeviceVariant)
 	if err != nil {
-		fmt.Printf("Данные УПП не получены")
+		fmt.Printf("Данные УПП не получены из конфигурационного файла!")
+		errConfig = false
 	}
 
-	err = initIPK()
+	errAnalogIPK, errBinIPK, errFreqIPK, err = initIPK()
 	if err != nil {
 		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
-		err = errors.New("Ошибка инициализации ИПК")
 	}
 
 	// Форма
@@ -97,8 +98,8 @@ func main() {
 	w.SetMainMenu(menu)
 
 	go func() { // простите
-		for {
-			time.Sleep(1 * time.Second)
+		sec := time.NewTicker(1 * time.Second)
+		for range sec.C {
 			for _, item := range menu.Items[0].Items {
 				if strings.Contains(item.Label, "Quit") {
 					item.Label = "Выход"
@@ -115,9 +116,6 @@ func main() {
 	gStatusLabel.TextStyle = style
 	gForm.Status = binding.NewString()
 	gStatusLabel.Bind(gForm.Status)
-	if err != nil {
-		gForm.Status.Set(fmt.Sprintf("%s", err.Error()))
-	}
 
 	// Элементы
 	boxSpeed := speed()
@@ -135,13 +133,51 @@ func main() {
 
 	box := container.NewVSplit(box4, gStatusLabel)
 
-	// пробуем получить данные с блока
-	if err := readUPPfromBU(); err == nil {
-		gForm.Status.Set("УПП получены с блока")
-	} else {
-		gForm.Status.Set(err.Error())
+	// сообщить о важных ошибках
+	statusIPK := "Ошибка ИПК. Нет связи с модулем:"
+	if !errAnalogIPK {
+		statusIPK += " ФАС,"
 	}
-	refreshForm()
+	if !errBinIPK {
+		statusIPK += " ФДС,"
+	}
+	if !errFreqIPK {
+		statusIPK += " ФЧС,"
+	}
+	statusIPK = strings.TrimSuffix(statusIPK, ",")
+
+	if errAnalogIPK && errBinIPK && errFreqIPK {
+		if !errConfig {
+			statusIPK = "Не получены данные из файла конфигурации"
+		} else {
+			statusIPK = ""
+			err = nil // важных ошибок нет
+		}
+	}
+	gForm.Status.Set(statusIPK)
+
+	if err == nil { // если есть ошибки в иниц ИПК нет смысла смотреть CAN
+		// пробуем получить данные с блока по CAN
+		go func() {
+			sec := time.NewTicker(1 * time.Second)
+			for range sec.C {
+				if err := checkCAN(); err != nil {
+					fmt.Println("ERR CAN")
+					gForm.Status.Set(err.Error())
+				} else {
+					fmt.Println("CAN OK")
+					if err = readUPPfromBU(); err == nil {
+						gForm.Status.Set("УПП получены с блока")
+					} else {
+						gForm.Status.Set(err.Error())
+					}
+					refreshForm()
+					break
+				}
+			}
+		}()
+
+	}
 
 	w.SetContent(box)
 	w.ShowAndRun()
@@ -1241,6 +1277,8 @@ func outputSignals() fyne.CanvasObject {
 		}
 		fmt.Printf("Двоичные выходы 50В: %d=%v ЛП (%v)\n", pin, on, err)
 	})
+	fds.Set50V(0, false)
+	checkLP.SetChecked(false)
 
 	checkButtonUhod := widget.NewCheck("кн. Уход", func(on bool) {
 		pin = 2
@@ -1473,6 +1511,7 @@ func showFormUPP() {
 	if gBU.Variant == BU4 {
 		managePower.Hide()
 	}
+	managePower.SetChecked(true)
 
 	w := fyne.CurrentApp().NewWindow("Установка условно постоянных признаков " + gBU.Name) // CurrentApp!
 	w.Resize(fyne.NewSize(800, 600))
@@ -1541,11 +1580,6 @@ func showFormUPP() {
 			}
 			tempupp[number] = upp
 
-		}
-		// дополнительные проверки todo
-		if !checkUPP() {
-			statusLabel.SetText("")
-			return
 		}
 
 		// записать в БУ
