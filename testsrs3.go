@@ -250,6 +250,8 @@ func getTitle(str string) *widget.Label {
 type DescriptionForm struct {
 	Status binding.String // строка (внизу) для ошибок, подсказок и др. инфы
 
+	CheckPower *widget.Check
+
 	RelayY  *widget.Check // уставки скоростей
 	RelayRY *widget.Check
 	RelayU  *widget.Check
@@ -392,7 +394,6 @@ func getListCAN() fyne.CanvasObject {
 			style.Monospace = true
 			temp := widget.NewLabelWithStyle("temp", fyne.TextAlignLeading, style)
 			return temp
-			// return widget.NewLabel("template")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
 			if i < len(data) {
@@ -1480,7 +1481,7 @@ func top() fyne.CanvasObject {
 	})
 	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
 
-	checkPower := widget.NewCheck("Питание КПД", func(on bool) {
+	gForm.CheckPower = widget.NewCheck("Питание КПД", func(on bool) {
 		gBU.Power(on)
 		gForm.Status.Set(" ")
 		if on && gBU.Variant == BU4 {
@@ -1489,7 +1490,7 @@ func top() fyne.CanvasObject {
 			gForm.CheckTurt.SetChecked(false)
 		}
 	})
-	checkPower.SetChecked(true)
+	gForm.CheckPower.SetChecked(true)
 
 	var buttonUPP *widget.Button
 	buttonUPP = widget.NewButton("  УПП  ", func() {
@@ -1499,7 +1500,7 @@ func top() fyne.CanvasObject {
 		buttonUPP.Enable()
 	})
 
-	box := container.New(layout.NewHBoxLayout(), selectDevice, checkPower, gForm.CheckTurt, layout.NewSpacer(), buttonUPP)
+	box := container.New(layout.NewHBoxLayout(), selectDevice, gForm.CheckPower, gForm.CheckTurt, layout.NewSpacer(), buttonUPP)
 
 	return box
 }
@@ -1614,6 +1615,12 @@ func showFormUPP() {
 
 		if managePower.Checked == true {
 			gBU.SetOperateMode()
+		}
+
+		if gBU.power {
+			gForm.CheckPower.SetChecked(true)
+		} else {
+			gForm.CheckPower.SetChecked(false)
 		}
 	})
 

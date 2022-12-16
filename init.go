@@ -207,7 +207,7 @@ func InitFreqIpkChannel() (err error) {
 }
 
 // Power питание БУ
-func (bu DescriptionBU) Power(on bool) {
+func (bu *DescriptionBU) Power(on bool) {
 	// 1 -- выкл
 	if s1, s2, _ := sp.GetOutputSpeed(); (s1 + s2) > 0 {
 		sp.SetSpeed(0, 0)
@@ -226,11 +226,9 @@ func (bu DescriptionBU) Power(on bool) {
 		fmt.Println("Ошибка установки двоичного выхода БУ!")
 	}
 	if gBU.Variant == BU4 {
-		bu.power = on
 		fds.Set50V(0, !on)
-	} else {
-		bu.power = on
 	}
+	bu.power = on
 }
 
 // Turt режим обслуживания
@@ -240,7 +238,7 @@ func (bu DescriptionBU) Turt(on bool) {
 }
 
 // SetServiceMode перейти в режим обслуживания
-func (bu DescriptionBU) SetServiceMode() {
+func (bu *DescriptionBU) SetServiceMode() {
 
 	if s1, s2, _ := sp.GetOutputSpeed(); (s1 + s2) > 0 {
 		sp.SetSpeed(0, 0)
@@ -256,7 +254,7 @@ func (bu DescriptionBU) SetServiceMode() {
 }
 
 // SetOperateMode рабочий режим
-func (bu DescriptionBU) SetOperateMode() {
+func (bu *DescriptionBU) SetOperateMode() {
 
 	bu.Power(false)
 	bu.Turt(false)
