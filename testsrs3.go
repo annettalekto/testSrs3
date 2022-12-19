@@ -708,11 +708,11 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entrySpeed1.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if speed1 > float64(speedLimit) || speed2 > float64(speedLimit) {
 			gForm.Status.Set("Ошибка установки скорости")
 			return
 		}
-		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gForm.Status.Set("Ошибка установки скорости")
@@ -751,10 +751,10 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	gForm.EntrySpeed2.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if speed1 > float64(speedLimit) || speed2 > float64(speedLimit) {
 			gForm.Status.Set("Ошибка установки скорости")
 		}
-		selectAll()
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
 			gForm.Status.Set("Ошибка установки скорости")
@@ -798,11 +798,11 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	entryAccel1.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if accel1 > accelLimit || accel2 > accelLimit {
 			gForm.Status.Set("Ошибка установки ускорения")
 			return
 		}
-		selectAll()
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
 			gForm.Status.Set("Ошибка установки ускорения")
@@ -836,11 +836,11 @@ func speed() fyne.CanvasObject {
 		}
 	}
 	gForm.EntryAccel2.Entry.OnSubmitted = func(str string) {
+		selectAll()
 		if accel1 > accelLimit || accel2 > accelLimit {
 			gForm.Status.Set("Ошибка установки ускорения")
 			return
 		}
-		selectAll()
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
 			gForm.Status.Set("Ошибка установки ускорения")
@@ -1033,7 +1033,6 @@ func speed() fyne.CanvasObject {
 	}
 	entryPress1.Entry.OnSubmitted = func(str string) {
 		selectAll()
-
 		if gBU.Variant != BU4 {
 			err = channel1.Set(math.Abs(press1))
 		} else {
@@ -1258,13 +1257,22 @@ func outputSignals() fyne.CanvasObject {
 	checkTracktion := widget.NewCheck("Тяга", func(on bool) {
 		pin = 7
 		if on {
-			err = fds.Set10V(pin, true)
+			if gBU.Variant == BU4 {
+				err = fds.Set50V(4, true)
+			} else {
+				err = fds.Set10V(pin, true)
+			}
 		} else {
-			err = fds.Set10V(pin, false)
+			if gBU.Variant == BU4 {
+				err = fds.Set50V(4, false)
+			} else {
+				err = fds.Set10V(pin, false)
+			}
 		}
 		fmt.Printf("Двоичные выходы 10В: %d=%v Тяга (%v)\n", pin, on, err)
 	})
 	fds.Set10V(7, false)
+	fds.Set50V(4, false)
 	checkTracktion.SetChecked(false)
 	gForm.BoxOut10V = container.NewVBox(checkG, checkY, checkRY, checkR, checkW, checkEPK1)
 
