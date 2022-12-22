@@ -1327,7 +1327,7 @@ func outputSignals() fyne.CanvasObject {
 
 	gForm.BoxOut50V = container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkKeyEPK)
 
-	boxOut := container.NewVBox(getTitle("    Вых. БУ:     "), checkTracktion, gForm.BoxOut10V, gForm.BoxOut50V)
+	boxOut := container.NewVBox(getTitle("Сигналы БУ:"), checkTracktion, gForm.BoxOut10V, gForm.BoxOut50V)
 	box := container.NewVBox(layout.NewSpacer(), container.NewHBox(boxOut, boxCode), layout.NewSpacer())
 
 	return box
@@ -1455,7 +1455,7 @@ func inputSignals() fyne.CanvasObject {
 		}
 	}()
 
-	return container.NewVBox(getTitle("Реле превышения уставок:"), box)
+	return container.NewVBox(getTitle("Реле БУ:"), box)
 }
 
 //---------------------------------------------------------------------------//
