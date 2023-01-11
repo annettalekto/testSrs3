@@ -300,7 +300,7 @@ func changeFormBU4() {
 	gForm.BoxBUS.Hide()
 	gForm.BoxOut50V.Hide()
 	gForm.BoxOut10V.Hide()
-	gForm.Radio.Disable()
+	gForm.Radio.Hide()
 
 	if major, minor, patch, number, err := canGetVersionBU4(); err == nil {
 		gBU.VersionBU4 = fmt.Sprintf("Версия %d.%d.%d (в лоции №%d)", major, minor, patch, number)
@@ -547,7 +547,8 @@ func getListCAN() fyne.CanvasObject {
 				} else {
 					str = "сброшен"
 				}
-				data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str))
+				// data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str))
+				data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", "Установлен сигнал"))
 				if (bytes[2] & 0x08) == 0x08 {
 					str = "1"
 				} else {
@@ -852,6 +853,14 @@ func speed() fyne.CanvasObject {
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
 	}
 
+	// тестировщик очень хочет тут кнопку
+	startButton := widget.NewButton("Старт", func() {
+		entrySpeed1.Entry.OnSubmitted(entrySpeed1.Entry.Text)
+		gForm.EntrySpeed2.Entry.OnSubmitted(gForm.EntrySpeed2.Entry.Text)
+		entryAccel1.Entry.OnSubmitted(entryAccel1.Entry.Text)
+		gForm.EntryAccel2.Entry.OnSubmitted(gForm.EntryAccel2.Entry.Text)
+	})
+
 	// обработка направления
 	directionChoice := []string{"Вперёд", "Назад"}
 
@@ -883,6 +892,7 @@ func speed() fyne.CanvasObject {
 		dummy, widget.NewLabel("Канал 1"), widget.NewLabel("Канал 2"),
 		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, gForm.EntrySpeed2,
 		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, gForm.EntryAccel2,
+		widget.NewLabel(""), widget.NewLabel(""), startButton,
 	)
 
 	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck, radioDirection, labelParameters)
@@ -954,7 +964,7 @@ func speed() fyne.CanvasObject {
 
 	// запуск по нажатию кнопки
 	var buttonMileage *widget.Button
-	buttonMileage = widget.NewButton("Старт", func() {
+	buttonMileage = widget.NewButton("Ок", func() {
 		if !distanceCheck {
 			if startMileage() {
 				buttonMileage.SetText("Стоп")
@@ -999,7 +1009,7 @@ func speed() fyne.CanvasObject {
 
 				if m >= setDistance {
 					distanceCheck = false
-					buttonMileage.SetText("Старт")
+					buttonMileage.SetText("Ок")
 					fmt.Println("Дистанция пройдена")
 				}
 			}
@@ -1138,7 +1148,7 @@ func outputSignals() fyne.CanvasObject {
 	var err error
 	pin := uint(0)
 
-	code := []string{"Ноль", "Единица",
+	code := []string{"Ноль",
 		"КЖ 1.6",
 		"Ж 1.6",
 		"З 1.6",
@@ -1151,8 +1161,6 @@ func outputSignals() fyne.CanvasObject {
 		switch s {
 		case "Ноль":
 			err = fds.SetIF(ipk.IFDisable)
-		case "Единица":
-			err = fds.SetIF(ipk.IFEnable)
 		case "КЖ 1.6":
 			err = fds.SetIF(ipk.IFRedYellow16)
 		case "Ж 1.6":
