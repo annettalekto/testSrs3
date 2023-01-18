@@ -330,7 +330,7 @@ func refreshForm() (err error) {
 		gForm.EntryPress3.Entry.Enable()
 
 		gForm.BoxOut10V.Show()
-		gForm.Radio.Enable()
+		gForm.Radio.Show()
 	}
 
 	switch gBU.Variant {
@@ -536,25 +536,27 @@ func getListCAN() fyne.CanvasObject {
 					str = "сброшено"
 				}
 				data = append(data, fmt.Sprintf("%-16s %s", "Движение вперёд:", str))
+
 				if (bytes[1] & 0x02) == 0x02 {
 					str = "установлено"
 				} else {
 					str = "сброшено"
 				}
 				data = append(data, fmt.Sprintf("%-16s %s", "Движение назад:", str))
+
 				if (bytes[1] & 0x10) == 0x10 {
 					str = "установлен"
 				} else {
 					str = "сброшен"
 				}
-				// data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str))
-				data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", "Установлен сигнал"))
-				if (bytes[2] & 0x08) == 0x08 {
-					str = "1"
-				} else {
-					str = "0"
-				}
+				data = append(data, fmt.Sprintf("%-16s %s", "Сигнал Тяга:", str))
+
 				if gBU.Variant != BU4 {
+					if (bytes[2] & 0x08) == 0x08 {
+						str = "1"
+					} else {
+						str = "0"
+					}
 					data = append(data, fmt.Sprintf("%-16s %s", "Кран ЭПК 1 каб.:", str))
 					if (bytes[2] & 0x10) == 0x10 {
 						str = "1"
@@ -1023,7 +1025,7 @@ func speed() fyne.CanvasObject {
 	limit1, limit2, limit3 := 10., gBU.PressureLimit, 10.
 
 	// обработка давления
-	entryPress1 := newSpecialEntry("0.0")
+	entryPress1 := newSpecialEntry("0.00")
 	entryPress1.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
@@ -1054,11 +1056,11 @@ func speed() fyne.CanvasObject {
 			return
 		}
 		gForm.Status.Set(" ")
-		fmt.Printf("Давление 1: %.1f кгс/см2 (%v)\n", math.Abs(press1), err)
-		entryPress1.Entry.SetText(fmt.Sprintf("%.1f", math.Abs(press1)))
+		fmt.Printf("Давление 1: %.2f кгс/см2 (%v)\n", math.Abs(press1), err)
+		entryPress1.Entry.SetText(fmt.Sprintf("%.2f", math.Abs(press1)))
 	}
 
-	gForm.EntryPress2 = newSpecialEntry("0.0")
+	gForm.EntryPress2 = newSpecialEntry("0.00")
 	gForm.EntryPress2.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
@@ -1091,11 +1093,11 @@ func speed() fyne.CanvasObject {
 			return
 		}
 		gForm.Status.Set(" ")
-		fmt.Printf("Давление 2: %.1f кгс/см2 (%v)\n", math.Abs(press2), err)
-		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.1f", math.Abs(press2)))
+		fmt.Printf("Давление 2: %.2f кгс/см2 (%v)\n", math.Abs(press2), err)
+		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.2f", math.Abs(press2)))
 	}
 
-	gForm.EntryPress3 = newSpecialEntry("0.0")
+	gForm.EntryPress3 = newSpecialEntry("0.00")
 	gForm.EntryPress3.Entry.OnChanged = func(str string) {
 		if str == "" {
 			return
@@ -1121,8 +1123,8 @@ func speed() fyne.CanvasObject {
 			return
 		}
 		gForm.Status.Set(" ")
-		fmt.Printf("Давление 3: %.1f кгс/см2 (%v)\n", math.Abs(press3), err)
-		gForm.EntryPress3.Entry.SetText(fmt.Sprintf("%.1f", math.Abs(press3)))
+		fmt.Printf("Давление 3: %.2f кгс/см2 (%v)\n", math.Abs(press3), err)
+		gForm.EntryPress3.Entry.SetText(fmt.Sprintf("%.2f", math.Abs(press3)))
 	}
 
 	box3 := container.NewGridWithColumns(
@@ -1132,7 +1134,8 @@ func speed() fyne.CanvasObject {
 	)
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
 
-	boxAll := container.NewVBox(layout.NewSpacer(), boxSpeed, boxMileage, boxPress, dummy, layout.NewSpacer())
+	// boxAll := container.NewVBox(layout.NewSpacer(), boxSpeed, boxMileage, boxPress, dummy, layout.NewSpacer())
+	boxAll := container.NewVBox(dummy, boxSpeed, boxMileage, boxPress, dummy)
 	box := container.NewHBox(dummy, boxAll, dummy)
 
 	return box
@@ -1147,6 +1150,7 @@ func speed() fyne.CanvasObject {
 func outputSignals() fyne.CanvasObject {
 	var err error
 	pin := uint(0)
+	dummy := widget.NewLabel("")
 
 	code := []string{"Ноль",
 		"КЖ 1.6",
@@ -1181,7 +1185,7 @@ func outputSignals() fyne.CanvasObject {
 	gForm.Radio.SetSelected("Ноль")
 	fds.SetIF(ipk.IFDisable) // предустановка
 	// radio.Horizontal = true
-	boxCode := container.NewVBox(getTitle("Коды РЦ:      "), gForm.Radio)
+	boxCode := container.NewVBox(dummy, getTitle("Коды РЦ:      "), gForm.Radio)
 
 	// 10V
 	// out10V, _ := fds.UintGetOutput10V()
@@ -1335,8 +1339,9 @@ func outputSignals() fyne.CanvasObject {
 
 	gForm.BoxOut50V = container.NewVBox(checkLP, checkButtonUhod, checkEPK, checkKeyEPK)
 
-	boxOut := container.NewVBox(getTitle("Сигналы БУ:"), checkTracktion, gForm.BoxOut10V, gForm.BoxOut50V)
-	box := container.NewVBox(layout.NewSpacer(), container.NewHBox(boxOut, boxCode), layout.NewSpacer())
+	boxOut := container.NewVBox(dummy, getTitle("Сигналы БУ:"), checkTracktion, gForm.BoxOut10V, gForm.BoxOut50V)
+	// box := container.NewVBox(layout.NewSpacer(), container.NewHBox(boxOut, boxCode), layout.NewSpacer())
+	box := container.NewHBox(boxOut, boxCode)
 
 	return box
 }
@@ -1493,6 +1498,7 @@ func top() fyne.CanvasObject {
 		config.DeviceVariant = OptionsBU(selectDevice.SelectedIndex())
 		writeFyneAPP(config)
 		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
+		readUPPfromBU()
 		refreshForm()
 	})
 	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
@@ -1596,7 +1602,6 @@ func showFormUPP() {
 				return
 			}
 			tempupp[number] = upp
-
 		}
 
 		// записать в БУ
@@ -1606,10 +1611,11 @@ func showFormUPP() {
 				_, msg := setServiceModeBU4()
 				statusLabel.SetText(msg)
 			}
-		}
-		gUPP = tempupp
-		if managePower.Checked == true {
-			gBU.SetServiceMode()
+		} else {
+			gUPP = tempupp
+			if managePower.Checked == true {
+				gBU.SetServiceMode()
+			}
 		}
 
 		if err := writeUPPtoBU(); err != nil {
@@ -1618,18 +1624,12 @@ func showFormUPP() {
 		}
 		statusLabel.SetText("УПП записаны успешно")
 
-		// сделать чтение упп из бу и сравнить todo
-		// readUPPfromBU()
-		// if gUPP сравнить tempupp {
-		// 	statusLabel.SetText("error")
-		// }
-		time.Sleep(5 * time.Second)
-
 		writeParamToTOML()
 		refreshDataBU()
 		refreshForm()
 
-		if managePower.Checked == true {
+		if gBU.Variant != BU4 && managePower.Checked == true {
+			time.Sleep(2 * time.Second)
 			gBU.SetOperateMode()
 		}
 
