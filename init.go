@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/amdf/ipk"
@@ -45,7 +46,7 @@ type DescriptionBU struct {
 	Variant         OptionsBU
 	power           bool
 	turt            bool
-	BandageDiameter uint32
+	BandageDiameter uint32 // бандаж использует ф: sp.Init() но только один бандаж! так что либо 1 либо 2...
 	PressureLimit   float64
 	NumberTeeth     uint32
 	ScaleLimit      uint32
@@ -88,27 +89,36 @@ func refreshDataIPK() (err error) {
 	return
 }
 
-func initIPK() (errA, errB, errF bool, err error) {
-	errF, errB, errA = true, true, true
+func initIPK() (err error) {
 
 	ipkBox.AnalogDev = new(ipk.AnalogDevice)
 	ipkBox.BinDev = new(ipk.BinaryDevice)
 	ipkBox.FreqDev = new(ipk.FreqDevice)
 
-	if !ipkBox.AnalogDev.Open() { //открываем ФАС-3
-		err = errors.New("ошибка инициализации ФАС")
+	errF, errB, errA := true, true, true
+	if !ipkBox.AnalogDev.Open() {
 		errA = false
 	}
-	if !ipkBox.BinDev.Open() { //открываем ФДС-3
-		err = errors.New("ошибка инициализации ФДС")
+	if !ipkBox.BinDev.Open() {
 		errB = false
 	}
-	if !ipkBox.FreqDev.Open() { //открываем ФЧС-3
-		err = errors.New("ошибка инициализации ФЧС")
+	if !ipkBox.FreqDev.Open() {
 		errF = false
 	}
 
 	if !errA || !errB || !errF {
+		str := "Ошибка ИПК. Нет связи с модулем:"
+		if !errA {
+			str += " ФАС,"
+		}
+		if !errB {
+			str += " ФДС,"
+		}
+		if !errF {
+			str += " ФЧС,"
+		}
+		str = strings.TrimSuffix(str, ",")
+		err = errors.New(str)
 		return
 	}
 

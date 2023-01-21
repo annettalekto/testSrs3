@@ -37,7 +37,6 @@ var gForm DescriptionForm
 var config configType
 
 func main() {
-	errAnalogIPK, errBinIPK, errFreqIPK, errConfig := true, true, true, true // важные ошибки
 	config = getFyneAPP()
 
 	defer func() {
@@ -57,15 +56,11 @@ func main() {
 	can25.Run()
 	defer can25.Stop()
 
+	errConfig := true
 	err = initDataBU(config.DeviceVariant)
 	if err != nil {
 		fmt.Printf("Данные УПП не получены из конфигурационного файла!")
 		errConfig = false
-	}
-
-	errAnalogIPK, errBinIPK, errFreqIPK, err = initIPK()
-	if err != nil {
-		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
 	}
 
 	// Форма
@@ -133,52 +128,51 @@ func main() {
 
 	box := container.NewVSplit(box4, gStatusLabel)
 
-	// сообщить о важных ошибках
-	statusIPK := "Ошибка ИПК. Нет связи с модулем:"
-	if !errAnalogIPK {
-		statusIPK += " ФАС,"
+	// вывод ошибок полученных при старте программы
+	if !errConfig {
+		gForm.Status.Set("Не получены данные из файла конфигурации")
 	}
-	if !errBinIPK {
-		statusIPK += " ФДС,"
-	}
-	if !errFreqIPK {
-		statusIPK += " ФЧС,"
-	}
-	statusIPK = strings.TrimSuffix(statusIPK, ",")
 
-	if errAnalogIPK && errBinIPK && errFreqIPK {
-		if !errConfig {
-			statusIPK = "Не получены данные из файла конфигурации"
-		} else {
-			statusIPK = ""
-			err = nil // важных ошибок нет
-		}
-	}
-	gForm.Status.Set(statusIPK)
+	go func() {
+		var ipk, canmsg bool
 
-	if err == nil { // если есть ошибки в иниц ИПК нет смысла смотреть CAN
-		// пробуем получить данные с блока по CAN
-		go func() {
-			sec := time.NewTicker(1 * time.Second)
-			for range sec.C {
+		sec := time.NewTicker(1 * time.Second)
+		for range sec.C {
+			if !ipk {
+				// Инициализация ИПК
+				err = initIPK()
+				if err != nil {
+					gForm.Status.Set(err.Error())
+				} else {
+					gForm.Status.Set("")
+					fmt.Println("IPK init OK")
+					ipk = true
+				}
+			}
+			if !canmsg {
+				// Получение сообщений CAN
 				if err := checkCAN(); err != nil {
-					fmt.Println("ERR CAN")
 					gForm.Status.Set(err.Error())
 				} else {
 					fmt.Println("CAN OK")
+					canmsg = true
+					// CAN работает, пробуем получить признаки
 					if err = readUPPfromBU(); err == nil {
 						gForm.Status.Set("УПП получены с блока")
 					} else {
 						gForm.Status.Set(err.Error())
 					}
 					refreshForm()
-					break
 				}
 			}
-		}()
+			if ipk && canmsg {
+				fmt.Println("Init OK. Let's work!")
+				break
+			}
+		}
+	}()
 
-	}
-
+	// запуск формы
 	w.SetContent(box)
 	w.ShowAndRun()
 }
@@ -256,7 +250,7 @@ type DescriptionForm struct {
 	RelayRY *widget.Check
 	RelayU  *widget.Check
 
-	Parameters binding.String // параметры имитации скорости (число зубьев и бандаж)
+	// Parameters binding.String // параметры имитации скорости (число зубьев и бандаж)
 
 	BoxBUS    *fyne.Container // сигналы БУС (есть только в 3ПВ)
 	BoxOut50V *fyne.Container // некоторые сигналы 3ПВ
@@ -312,7 +306,7 @@ func refreshForm() (err error) {
 
 	refreshDataIPK()
 
-	gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
+	// gForm.Parameters.Set(fmt.Sprintf("Число зубьев:	 	%d, 	диаметр бандажа:	 %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
 	gForm.RelayY.Text = fmt.Sprintf("%d", gBU.RelayY)
 	gForm.RelayRY.Text = fmt.Sprintf("%d", gBU.RelayRY)
 	gForm.RelayU.Text = fmt.Sprintf("%d", gBU.RelayU)
@@ -884,10 +878,10 @@ func speed() fyne.CanvasObject {
 
 	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
-	labelParameters := widget.NewLabel("")
-	gForm.Parameters = binding.NewString()
-	labelParameters.Bind(gForm.Parameters)
-	gForm.Parameters.Set(fmt.Sprintf("Число зубьев %d, диаметр бандажа %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
+	// labelParameters := widget.NewLabel("")
+	// gForm.Parameters = binding.NewString()
+	// labelParameters.Bind(gForm.Parameters)
+	// gForm.Parameters.Set(fmt.Sprintf("Число зубьев %d, диаметр бандажа %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
 
 	box1 := container.NewGridWithColumns(
 		3,
@@ -897,7 +891,7 @@ func speed() fyne.CanvasObject {
 		widget.NewLabel(""), widget.NewLabel(""), startButton,
 	)
 
-	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck, radioDirection, labelParameters)
+	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck, radioDirection /*, labelParameters*/)
 
 	// ------------------------- box 2 ----------------------------
 
@@ -1127,10 +1121,17 @@ func speed() fyne.CanvasObject {
 		gForm.EntryPress3.Entry.SetText(fmt.Sprintf("%.2f", math.Abs(press3)))
 	}
 
+	startPressButton := widget.NewButton("Ок", func() {
+		entryPress1.Entry.OnSubmitted(entryPress1.Entry.Text)
+		gForm.EntryPress2.Entry.OnSubmitted(gForm.EntryPress2.Entry.Text)
+		gForm.EntryPress3.Entry.OnSubmitted(gForm.EntryPress3.Entry.Text)
+	})
+
 	box3 := container.NewGridWithColumns(
 		3,
 		widget.NewLabel("Канал 1 (ТМ):"), widget.NewLabel("Канал 2 (ТЦ):"), widget.NewLabel("Канал 3 (ГР):"),
 		entryPress1, gForm.EntryPress2, gForm.EntryPress3,
+		dummy, dummy, startPressButton,
 	)
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
 
@@ -1603,16 +1604,20 @@ func showFormUPP() {
 			}
 			tempupp[number] = upp
 		}
+		d1, _ := strconv.ParseFloat(tempupp[2].Value, 32)
+		d2, _ := strconv.ParseFloat(tempupp[3].Value, 32)
+		if math.Abs(d1-d2) > 20. {
+			statusLabel.SetText("Ошибка: диаметры бандажа колёсной пары 1 и 2 отличаются")
+		}
 
 		// записать в БУ
+		gUPP = tempupp
 		if gBU.Variant == BU4 {
-			// переход в режим обслуживания для БУ4 = ввести пин
 			if !isServiceModeBU4() {
 				_, msg := setServiceModeBU4()
 				statusLabel.SetText(msg)
 			}
 		} else {
-			gUPP = tempupp
 			if managePower.Checked == true {
 				gBU.SetServiceMode()
 			}

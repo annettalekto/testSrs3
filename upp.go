@@ -250,7 +250,7 @@ func writeUPPtoBU() (err error) {
 // проверить на корректность и обновить данные, для расчета и установки параметров
 func refreshDataBU() (err error) {
 
-	i := 3
+	i := 2
 	ival, err := strconv.Atoi(gUPP[i].Value)
 	if err != nil {
 		err = fmt.Errorf("ОШИБКА. Значение УПП: \"%s\" не верно: %v", gUPP[i].Name, ival)
