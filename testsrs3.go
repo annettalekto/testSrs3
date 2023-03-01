@@ -201,7 +201,7 @@ func threadInitUPP() {
 				canmsg = true
 				// CAN работает, пробуем получить признаки
 				if err = readUPPfromBU(); err == nil {
-					setStatus("УПП получены с блока")
+					setStatus("Соединение с БУ установлено")
 				} else {
 					setStatus(err.Error())
 				}

@@ -7,8 +7,6 @@ require (
 	github.com/amdf/ixxatvci3 v0.1.6
 )
 
-replace fyne.io/fyne/v2 v2.2.4 => github.com/engaziwayo/fyne2.3.1/v2 v2.3.2
-
 require (
 	fyne.io/systray v1.10.1-0.20230207085535-4a244dbb9d03 // indirect
 	github.com/benoitkugler/textlayout v0.3.0 // indirect
@@ -39,6 +37,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 )
+
+replace fyne.io/fyne/v2 v2.2.4 => github.com/engaziwayo/fyne2.3.1/v2 v2.3.2
 
 require (
 	github.com/BurntSushi/toml v1.1.0
