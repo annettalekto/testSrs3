@@ -209,7 +209,7 @@ func setIntVal(mod int, s string) (err error) {
 func canGetTimeBU() (tm time.Time, err error) {
 	var msg candev.Message
 
-	msg, err = can25.GetMsgByID(0xC7, 10*time.Second)
+	msg, err = can25.GetMsgByID(idTimeBU, 10*time.Second)
 	if err != nil {
 		err = errors.New("canGetTimeBU(): " + err.Error())
 	}

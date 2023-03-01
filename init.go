@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"github.com/amdf/ipk"
-	"github.com/amdf/ixxatvci3/candev"
 )
 
-var can25 candev.Device
 var ipkBox ipk.IPK
 
 var sp ipk.Speed
