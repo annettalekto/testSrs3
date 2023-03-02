@@ -42,6 +42,7 @@ var config configType
 var can25 *candev.Device
 
 var bOkCAN bool
+var bOkIPK bool
 var bConnected bool
 
 var w fyne.Window
@@ -82,8 +83,9 @@ func main() {
 	// Форма
 	a := app.New()
 	w = a.NewWindow(config.ProgramName) // с окнами у fyne проблемы
-	w.Resize(fyne.NewSize(1024, 780))   // прописать точный размер
+	w.Resize(fyne.NewSize(1024, 850))   // прописать точный размер
 	w.SetFixedSize(true)                // не использовать без Resize
+
 	ic, _ := fyne.LoadResourceFromPath(config.Icon)
 	w.SetIcon(ic)
 	w.CenterOnScreen()
@@ -141,22 +143,23 @@ func main() {
 	box3 := container.NewVSplit(top, box2)
 
 	boxCAN := getListCAN()
+
 	box4 := container.NewHSplit(box3, boxCAN)
 
 	box := container.NewVSplit(box4, gStatusLabel)
 
-	err = initIPK()
-	if err != nil {
-		gForm.Status.Set(err.Error())
-
-	} else {
-		gForm.Status.Set("IPK init OK")
-		fmt.Println("IPK init OK")
-	}
-
 	// вывод ошибок полученных при старте программы
 	if !errConfig {
 		gForm.Status.Set("Не получены данные из файла конфигурации")
+	}
+
+	err = initIPK()
+	if err != nil {
+		fmt.Printf("Ошибка инициализации CAN: %v\n", err)
+		bOkIPK = false
+	} else {
+		bOkIPK = true
+		fmt.Println("IPK init OK")
 	}
 
 	/*
@@ -167,10 +170,10 @@ func main() {
 	case !bOkCAN:
 		ErrorDialog("Ошибка CAN", "Выход", "Подключите CAN адаптер")
 
-	case err != nil:
+	case !bOkIPK:
 		ErrorDialog("Ошибка ИПК", "Выход", "Подключите ИПК")
 
-	case err == nil:
+	default:
 		go threadInitUPP()
 		go threadActivity()
 		go processScreen()
@@ -1099,12 +1102,13 @@ func speed() fyne.CanvasObject {
 		} else {
 			direction = ipk.MotionBackwards
 		}
+
 		if err = sp.SetMotion(direction); err != nil { // todo должно быть два напревления
 			ShowMessage("Ошибка установки направления движения")
 			return
 		}
 		fmt.Printf("Направление: %s\n", s)
-		ShowMessage(" ")
+		// ShowMessage(" ")
 	})
 	radioDirection.Horizontal = true
 	radioDirection.SetSelected("Вперёд")
@@ -1716,18 +1720,23 @@ func top() fyne.CanvasObject {
 
 	// Режим обслуживания
 	gForm.CheckTurt = widget.NewCheck("TURT", func(on bool) {
-		if gBU.Variant == BU4 {
-			ok, msg := setServiceModeBU4()
-			ShowMessage(msg)
-			if !ok {
-				gForm.CheckTurt.SetChecked(false)
-			} else {
-				gForm.CheckTurt.Disable() // выход из режима - перезагрузка
-			}
+		if on { // если установили чек, а не сбросили
+			if gBU.Variant == BU4 {
+				ok, msg := setServiceModeBU4()
+				ShowMessage(msg)
+				if !ok {
+					gForm.CheckTurt.SetChecked(false)
+				} else {
+					gForm.CheckTurt.Disable() // выход из режима - перезагрузка
+				}
 
+			} else {
+				gBU.Turt(on)
+			}
 		} else {
-			gBU.Turt(on)
+			fmt.Println("Режим обслуживания сброшен")
 		}
+
 	})
 	// Смена блока туть
 	var selectDevice *widget.Select
