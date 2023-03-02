@@ -196,6 +196,7 @@ func threadInitUPP() {
 			if !bConnected {
 				fmt.Println("Блок БУ не обнаружен")
 				setStatus("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
+
 			} else {
 				fmt.Println("CAN OK")
 				canmsg = true
@@ -234,9 +235,11 @@ func threadActivity() {
 		}
 
 		if wasConnected != bConnected {
+			wasConnected = bConnected
 			activityWindow()
+			// refreshForm()
 		}
-		wasConnected = bConnected
+
 		bConnected = false // true установиться в потоке can
 	}
 }
@@ -390,21 +393,29 @@ func changeFormBU4() {
 		gForm.CheckTurt.SetChecked(false)
 	}
 
-	if gBU.NumberDUP == 1 {
-		gForm.EntrySpeed2.Entry.Disable()
-		gForm.EntryAccel2.Entry.Disable()
-	} else { // gBU.NumberDUP == 2
-		gForm.EntrySpeed2.Entry.Enable()
-		gForm.EntryAccel2.Entry.Enable()
-	}
-
-	if gBU.NumberDD == 1 {
-		gForm.EntryPress2.Entry.Disable()
-		gForm.EntryPress3.Entry.Disable()
-	} else { //gBU.NumberDD == 2
-		gForm.EntryPress2.Entry.Enable()
-		gForm.EntryPress3.Entry.Disable()
-	}
+	// if gBU.NumberDUP == 1 {
+	// 	gForm.EntrySpeed2.Entry.Disable()
+	// 	gForm.EntryAccel2.Entry.Disable()
+	// } else { // gBU.NumberDUP == 2
+	// 	if !bConnected {
+	// 		gForm.EntrySpeed2.Entry.Disable()
+	// 		gForm.EntryAccel2.Entry.Disable()
+	// 	} else {
+	// 		gForm.EntrySpeed2.Entry.Enable()
+	// 		gForm.EntryAccel2.Entry.Enable()
+	// 	}
+	// }
+	// if gBU.NumberDD == 1 {
+	// 	gForm.EntryPress2.Entry.Disable()
+	// 	gForm.EntryPress3.Entry.Disable()
+	// } else { //gBU.NumberDD == 2
+	// 	gForm.EntryPress3.Entry.Disable()
+	// 	if !bConnected {
+	// 		gForm.EntryPress2.Entry.Disable()
+	// 	} else {
+	// 		gForm.EntryPress2.Entry.Enable()
+	// 	}
+	// }
 
 	gForm.BoxBUS.Hide()
 	gForm.BoxOut50V.Hide()
@@ -433,10 +444,17 @@ func refreshForm() (err error) {
 		gForm.CheckTurt.Text = "TURT"
 		gForm.CheckTurt.Refresh()
 
-		gForm.EntrySpeed2.Entry.Enable()
-		gForm.EntryAccel2.Entry.Enable()
-		gForm.EntryPress2.Entry.Enable()
-		gForm.EntryPress3.Entry.Enable()
+		// if !bConnected {
+		// 	gForm.EntrySpeed2.Entry.Disable()
+		// 	gForm.EntryAccel2.Entry.Disable()
+		// 	gForm.EntryPress2.Entry.Disable()
+		// 	gForm.EntryPress3.Entry.Disable()
+		// } else {
+		// 	gForm.EntrySpeed2.Entry.Enable()
+		// 	gForm.EntryAccel2.Entry.Enable()
+		// 	gForm.EntryPress2.Entry.Enable()
+		// 	gForm.EntryPress3.Entry.Enable()
+		// }
 
 		gForm.BoxOut10V.Show()
 		gForm.Radio.Show()
@@ -454,15 +472,19 @@ func refreshForm() (err error) {
 	}
 
 	return
+
 }
 
 // Без соединения с БУ все поля ввода не активны
 func activityWindow() {
 
 	if !bConnected {
+
 		startButton.Disable()
 		buttonMileage.Disable()
 		startPressButton.Disable()
+		// gForm.CheckPower.Disable()
+		buttonUPP.Disable()
 
 		entryPress1.Disable()
 		entryMileage.Disable()
@@ -476,19 +498,30 @@ func activityWindow() {
 		gForm.EntryPress2.Entry.Disable()
 		gForm.EntryPress3.Entry.Disable()
 
+		return
+
 	} else {
 
 		startButton.Enable()
 		buttonMileage.Enable()
 		startPressButton.Enable()
+		// gForm.CheckPower.Enable()
+		buttonUPP.Enable()
+
+		entryPress1.Enable()
+		entryMileage.Enable()
+		entrySpeed1.Enable()
+		entryAccel1.Enable()
+		radioDirection.Enable()
+
+		gForm.CheckTurt.Enable()
+		gForm.CheckTurt.SetChecked(false)
 
 		if gBU.Variant != BU4 {
-
 			gForm.EntrySpeed2.Entry.Enable()
 			gForm.EntryAccel2.Entry.Enable()
 			gForm.EntryPress2.Entry.Enable()
 			gForm.EntryPress3.Entry.Enable()
-
 		} else {
 
 			if gBU.NumberDUP == 1 {
@@ -508,13 +541,7 @@ func activityWindow() {
 			}
 		}
 
-		entryPress1.Enable()
-		entryMileage.Enable()
-		entrySpeed1.Enable()
-		entryAccel1.Enable()
-		radioDirection.Enable()
-		gForm.CheckTurt.Enable()
-
+		return
 	}
 }
 
@@ -616,12 +643,22 @@ func getListCAN() fyne.CanvasObject {
 			data = append(data, " ")
 
 			if bytes, ok := mapDataCAN[idSpeed1]; ok {
-				data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 каб.(км/ч):", byteToSpeed(bytes)))
+				enterSpeed1, _ := strconv.Atoi(entrySpeed1.Entry.Text)
+				if enterSpeed1 > 400 {
+					data = append(data, fmt.Sprintf("%-22s Ошибка", "Скорость 1 каб.(км/ч):"))
+				} else {
+					data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 каб.(км/ч):", byteToSpeed(bytes)))
+				}
 			} else {
 				data = append(data, fmt.Sprintf("%-22s —", "Скорость 1 каб.(км/ч):"))
 			}
 			if bytes, ok := mapDataCAN[idSpeed2]; ok {
-				data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 2 каб.(км/ч):", byteToSpeed(bytes)))
+				enterSpeed2, _ := strconv.Atoi(gForm.EntrySpeed2.Entry.Text)
+				if enterSpeed2 > 400 {
+					data = append(data, fmt.Sprintf("%-22s Ошибка", "Скорость 2 каб.(км/ч):"))
+				} else {
+					data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 2 каб.(км/ч):", byteToSpeed(bytes)))
+				}
 			} else {
 				data = append(data, fmt.Sprintf("%-22s —", "Скорость 2 каб.(км/ч):"))
 			}
@@ -1706,8 +1743,10 @@ func top() fyne.CanvasObject {
 		ShowMessage(" ")
 		if on && gBU.Variant == BU4 {
 			// для БУ-4 выход из режима обслуживания - перезагрузка
-			gForm.CheckTurt.Enable()
-			gForm.CheckTurt.SetChecked(false)
+			if bConnected {
+				gForm.CheckTurt.Enable()
+				gForm.CheckTurt.SetChecked(false)
+			}
 		}
 	})
 	gForm.CheckPower.SetChecked(true)
