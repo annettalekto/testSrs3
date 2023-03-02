@@ -644,7 +644,8 @@ func getListCAN() fyne.CanvasObject {
 
 			if bytes, ok := mapDataCAN[idSpeed1]; ok {
 				enterSpeed1, _ := strconv.Atoi(entrySpeed1.Entry.Text)
-				if enterSpeed1 > 400 {
+				enterSpeed2, _ := strconv.Atoi(gForm.EntrySpeed2.Entry.Text)
+				if enterSpeed1 > 400 || enterSpeed2 > 400 { // БУ присылает неверные данные, если скорость более 400 км/ч, отслеживаем по введенным данным
 					data = append(data, fmt.Sprintf("%-22s Ошибка", "Скорость 1 каб.(км/ч):"))
 				} else {
 					data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 1 каб.(км/ч):", byteToSpeed(bytes)))
@@ -653,8 +654,9 @@ func getListCAN() fyne.CanvasObject {
 				data = append(data, fmt.Sprintf("%-22s —", "Скорость 1 каб.(км/ч):"))
 			}
 			if bytes, ok := mapDataCAN[idSpeed2]; ok {
+				enterSpeed1, _ := strconv.Atoi(entrySpeed1.Entry.Text)
 				enterSpeed2, _ := strconv.Atoi(gForm.EntrySpeed2.Entry.Text)
-				if enterSpeed2 > 400 {
+				if enterSpeed1 > 400 || enterSpeed2 > 400 {
 					data = append(data, fmt.Sprintf("%-22s Ошибка", "Скорость 2 каб.(км/ч):"))
 				} else {
 					data = append(data, fmt.Sprintf("%-22s %.1f", "Скорость 2 каб.(км/ч):", byteToSpeed(bytes)))
