@@ -43,7 +43,9 @@ var can25 *candev.Device
 
 var bOkCAN bool
 var bOkIPK bool
+
 var bConnected bool
+var wasbConnected bool // предыдущее состояние соединения
 
 var w fyne.Window
 
@@ -83,7 +85,7 @@ func main() {
 	// Форма
 	a := app.New()
 	w = a.NewWindow(config.ProgramName) // с окнами у fyne проблемы
-	w.Resize(fyne.NewSize(1024, 850))   // прописать точный размер
+	w.Resize(fyne.NewSize(1024, 850))   // если размер менее, то баг при сворачивании
 	w.SetFixedSize(true)                // не использовать без Resize
 
 	ic, _ := fyne.LoadResourceFromPath(config.Icon)
@@ -155,11 +157,11 @@ func main() {
 
 	err = initIPK()
 	if err != nil {
-		fmt.Printf("Ошибка инициализации CAN: %v\n", err)
+		fmt.Printf("Ошибка инициализации ИПК: %v\n", err)
 		bOkIPK = false
 	} else {
 		bOkIPK = true
-		fmt.Println("IPK init OK")
+		fmt.Println("Инициализации ИПК OK")
 	}
 
 	/*
@@ -186,33 +188,36 @@ func main() {
 
 var canOk = make(chan int)
 
+/*
+Ожидание соединения, загрузка формы БУ
+*/
 func threadInitUPP() {
 
-	err := errors.New("")
 	var canmsg bool // ipk,
 	activityWindow()
 
-	sec := time.NewTicker(1 * time.Second)
+	sec := time.NewTicker(500 * time.Millisecond)
 	for range sec.C {
 		if !canmsg {
 			// Получение сообщений CAN
 			if !bConnected {
 				fmt.Println("Блок БУ не обнаружен")
-				setStatus("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
+				ShowMessage("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
 
 			} else {
 				fmt.Println("CAN OK")
 				canmsg = true
 				// CAN работает, пробуем получить признаки
-				if err = readUPPfromBU(); err == nil {
-					setStatus("Соединение с БУ установлено")
+				if err := readUPPfromBU(); err == nil {
+					ShowMessage("Соединение с БУ установлено")
 				} else {
-					setStatus(err.Error())
+					ShowMessage(err.Error())
+					fmt.Println(err.Error())
 				}
 				refreshForm()
 			}
 		}
-		if canmsg { // ipk &&
+		if canmsg {
 			fmt.Println("Init OK. Let's work!")
 			canOk <- 1
 			break
@@ -220,14 +225,13 @@ func threadInitUPP() {
 	}
 }
 
-var wasConnected bool
-
 /*
 Проверка связи с БУ
+Блокировка полей ввода, кнопок при отсутвии БУ
 */
 func threadActivity() {
 	<-canOk
-	sec := time.NewTicker(1 * time.Second)
+	sec := time.NewTicker(1500 * time.Millisecond)
 	for range sec.C {
 		if bConnected {
 			setStatus("УПП получены с блока") // Сообщение будет перекрывать все остальные
@@ -237,21 +241,20 @@ func threadActivity() {
 			setStatus("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
 		}
 
-		if wasConnected != bConnected {
-			wasConnected = bConnected
+		if wasbConnected != bConnected {
+			wasbConnected = bConnected
 			activityWindow()
-			// refreshForm()
 		}
 
 		bConnected = false // true установиться в потоке can
 	}
 }
 
-var textMessage, textStatus string // переменные хранят значение последнего статуса и сообщения
+var textMessage, textStatus string // значение последнего статуса и сообщения
 var bShowMessage = false           // признак нового сообщения
 var timer *time.Timer
 
-const showTime = 5
+const showMessageTime = 5
 
 // устанавоиваем текущий статус
 func setStatus(message string) {
@@ -259,9 +262,9 @@ func setStatus(message string) {
 }
 
 /*
-Показать сообщение
-message текст
-ShowTime - сколько мс будет отображаться сообщение на экране.
+Показать сообщение поверх статуса
+bShowMessage признак нового сообщения
+showMessageTime - сколько с будет отображаться сообщение на экране.
 */
 func ShowMessage(message string) {
 
@@ -273,9 +276,8 @@ func ShowMessage(message string) {
 
 	textMessage = message
 
-	timer = time.AfterFunc(showTime*time.Second, func() {
-		bShowMessage = false
-		// fmt.Println("Время отображения сообщения истекло")
+	timer = time.AfterFunc(showMessageTime*time.Second, func() {
+		bShowMessage = false // Время отображения сообщения истекло
 	})
 }
 
@@ -290,7 +292,7 @@ func processScreen() {
 		if bShowMessage {
 			gForm.Status.Set(textMessage)
 		} else {
-			gForm.Status.Set(textStatus) // выводится повторяющеся событие
+			gForm.Status.Set(textStatus)
 		}
 
 	}
@@ -464,13 +466,20 @@ func refreshForm() (err error) {
 	}
 
 	switch gBU.Variant {
-	case BU3P, BU3PA:
+	case BU3P:
+		gForm.CheckPower.Hide()
+		gForm.BoxBUS.Hide()
+		gForm.BoxOut50V.Hide()
+	case BU3PA:
+		gForm.CheckPower.Show()
 		gForm.BoxBUS.Hide()
 		gForm.BoxOut50V.Hide()
 	case BU3PV:
+		gForm.CheckPower.Show()
 		gForm.BoxBUS.Show()
 		gForm.BoxOut50V.Show()
 	case BU4:
+		gForm.CheckPower.Show()
 		changeFormBU4()
 	}
 
@@ -494,7 +503,11 @@ func activityWindow() {
 		entrySpeed1.Disable()
 		entryAccel1.Disable()
 		radioDirection.Disable()
-		gForm.CheckTurt.Disable()
+		if gBU.Variant == BU4 {
+			gForm.CheckTurt.Disable()
+		} else {
+			gForm.CheckTurt.Enable()
+		}
 
 		gForm.EntrySpeed2.Entry.Disable()
 		gForm.EntryAccel2.Entry.Disable()
@@ -517,8 +530,10 @@ func activityWindow() {
 		entryAccel1.Enable()
 		radioDirection.Enable()
 
-		gForm.CheckTurt.Enable()
-		gForm.CheckTurt.SetChecked(false)
+		if gBU.Variant == BU4 {
+			gForm.CheckTurt.Enable()
+			gForm.CheckTurt.SetChecked(false)
+		}
 
 		if gBU.Variant != BU4 {
 			gForm.EntrySpeed2.Entry.Enable()
@@ -1733,25 +1748,18 @@ func top() fyne.CanvasObject {
 			} else {
 				gBU.Turt(on)
 			}
-		} else {
+		} else { // сбросили чек
+			if gBU.Variant != BU4 { // off TURT
+				gBU.Turt(on)
+			}
 			fmt.Println("Режим обслуживания сброшен")
 		}
-
 	})
-	// Смена блока туть
-	var selectDevice *widget.Select
-	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
-		config.DeviceVariant = OptionsBU(selectDevice.SelectedIndex())
-		writeFyneAPP(config)
-		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
-		readUPPfromBU()
-		refreshForm()
-	})
-	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
 
 	gForm.CheckPower = widget.NewCheck("Питание КПД", func(on bool) {
 		gBU.Power(on)
-		ShowMessage(" ")
+		// ShowMessage(" ")
+
 		if on && gBU.Variant == BU4 {
 			// для БУ-4 выход из режима обслуживания - перезагрузка
 			if bConnected {
@@ -1761,6 +1769,18 @@ func top() fyne.CanvasObject {
 		}
 	})
 	gForm.CheckPower.SetChecked(true)
+
+	// Смена блока туть
+	var selectDevice *widget.Select
+	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
+		config.DeviceVariant = OptionsBU(selectDevice.SelectedIndex())
+		writeFyneAPP(config)
+		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
+		readUPPfromBU()
+		refreshForm()
+
+	})
+	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
 
 	buttonUPP = widget.NewButton("  УПП  ", func() {
 		ShowMessage(" ")
@@ -1778,7 +1798,7 @@ func showFormUPP() {
 	var paramEntry = make(map[int]*widget.Entry)
 	statusLabel := widget.NewLabel(" ")
 	managePower := widget.NewCheck("Управлять питанием", nil)
-	if gBU.Variant == BU4 {
+	if gBU.Variant == BU4 || gBU.Variant == BU3P {
 		managePower.Hide()
 	}
 	managePower.SetChecked(true)
