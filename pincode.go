@@ -61,17 +61,22 @@ func setServiceModeBU4() (ok bool, logInfo string) {
 			can25.Send(msg)
 			logInfo = "Пин-код отправлен."
 
-			// делаем проверку режима
-			if msg, err = can25.GetMsgByID(BU4_SYS_INFO, 2*time.Second); err == nil {
-				if msg.Data[0] == SERVICE_MODE && msg.Data[1] == 1 {
+			attemptCounter := 0
+			for {
+				if bOkServiceModeBU4 {
 					logInfo = fmt.Sprintf("Блок перешел в режим обслуживания (выход - перезагрузка).")
 					ok = true
+					break
 				} else {
-					logInfo += fmt.Sprintf(" Блок не перешел в режим обслуживания или сообщение не принято (сообщение: %X %X)\r\n", msg.Data[0], msg.Data[1])
+					time.Sleep(time.Second / 4)
+					attemptCounter++
+					if attemptCounter == 10 {
+						logInfo += fmt.Sprintf(" Ответное сообщение не принято r\n")
+						break
+					}
 				}
-			} else {
-				logInfo += fmt.Sprintf(" Ответное сообщение не принято, err: %v\r\n", err)
 			}
+
 		} else {
 			logInfo = fmt.Sprintf("Пин-код не сгенерирован, err: %v\r\n", err)
 		}
@@ -85,17 +90,6 @@ func setServiceModeBU4() (ok bool, logInfo string) {
 }
 
 func isServiceModeBU4() (ok bool) {
-	var msg candev.Message
-
-	msg.ID = BU3P_QUERY_INFO
-	msg.Data[0] = SERVICE_MODE
-	can25.Send(msg)
-
-	if msg, err := can25.GetMsgByID(BU4_SYS_INFO, 2*time.Second); err == nil {
-		if msg.Data[0] == SERVICE_MODE && msg.Data[1] == 1 {
-			// logInfo = fmt.Sprintf("Блок перешел в режим обслуживания.")
-			ok = true
-		}
-	}
+	ok = bOkServiceModeBU4
 	return
 }

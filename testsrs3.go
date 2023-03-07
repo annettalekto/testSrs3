@@ -47,7 +47,9 @@ var bOkIPK bool
 var bConnected bool
 var wasbConnected bool // предыдущее состояние соединения
 
-var threadActivityOk = make(chan int)
+var bOkServiceModeBU4 bool
+
+// var threadActivityOk = make(chan int)
 
 var box4 *container.Split
 
@@ -78,10 +80,7 @@ func main() {
 	} else {
 		bOkCAN = true
 		can25.Run()
-		defer func() {
-			can25.Stop()
-			bConnected = false
-		}()
+		defer can25.Stop()
 	}
 
 	errConfig := true
@@ -94,7 +93,7 @@ func main() {
 	// Форма
 	a := app.New()
 	w = a.NewWindow(config.ProgramName) // с окнами у fyne проблемы
-	w.Resize(fyne.NewSize(1024, 850))   // если размер менее, то баг при сворачивании
+	w.Resize(fyne.NewSize(1024, 880))   // если размер менее, то баг при сворачивании
 	w.SetFixedSize(true)                // не использовать без Resize
 
 	ic, _ := fyne.LoadResourceFromPath(config.Icon)
@@ -182,10 +181,13 @@ func main() {
 		ErrorDialog("Ошибка CAN", "Выход", "Подключите CAN адаптер. Перезапустите программу.")
 
 	case !bOkIPK:
-		ErrorDialog("Ошибка ИПК", "Выход", "Подключите ИПК. Перезапустите программу.")
+		// ErrorDialog("Ошибка ИПК", "Выход", "Подключите ИПК. Перезапустите программу.")
+		dialog.ShowCustomError("Ошибка ИПК", "Ок", "Подключите ИПК.", func(b bool) {}, w)
+		fallthrough
 
 	default:
 		activityWindow()
+		go threadCAN()
 		// go threadInitUPP()
 		go threadActivity()
 		go processScreen()
@@ -254,7 +256,6 @@ var timeInitIPK *time.Timer
 func threadIPK() {
 
 	errF, errB, errA := true, true, true
-	timerOn := false
 	var err error
 
 	sec := time.NewTicker(1000 * time.Millisecond)
@@ -286,23 +287,40 @@ func threadIPK() {
 			}
 
 			// если таймер не запущен запутстить
-			if !timerOn {
-				timerOn = true
+			if bOkIPK {
+				bOkIPK = false // todo мб не тут
+
 				timeInitIPK = time.AfterFunc(8*time.Second, func() { // даем время на включение ипк, если в течении времени t ипк не будет инициализирован, то выведем сообщение  с просьбой включить ипк
 					dialog.ShowCustomError("Ошибка ИПК", "Ок", "Подключите ИПК.", func(b bool) {}, w)
-					bOkIPK = false // todo мб не тут
 
-					selectDevice.Disable() // todo отдельный поток для запретов и разрешений отображения форм и т д
+					selectDevice.Disable() // todo отдельный поток для запретов и разрешений отображения форм и т д (при запуске при выключенном ИПК сделать сброс форм)
+					gForm.CheckPower.Disable()
+					gForm.CheckTurt.Disable()
+					// gForm.Radio.Disable()
+
 				})
 			}
 
-		} else {
-			if timeInitIPK != nil {
+		} else { // нет ошибок
+			if timeInitIPK != nil { // если запущен таймер - сбросить
 				timeInitIPK.Stop()
 			}
-			timerOn = false
 			bOkIPK = true
+
 			selectDevice.Enable()
+			gForm.CheckPower.Enable()
+			// gForm.Radio.Enable()
+		}
+	}
+}
+
+func threadCAN() {
+	for {
+		_, err := can25.GetMsgByID(idTimeBU, 1*time.Second)
+		if err != nil {
+			bConnected = false
+		} else {
+			bConnected = true
 		}
 	}
 }
@@ -312,7 +330,7 @@ func threadIPK() {
 Блокировка полей ввода, кнопок при отсутвии БУ
 */
 func threadActivity() {
-	<-threadActivityOk
+	// <-threadActivityOk
 	resetScren()
 	sec := time.NewTicker(1500 * time.Millisecond)
 	for range sec.C {
@@ -330,7 +348,7 @@ func threadActivity() {
 			activityWindow()
 		}
 
-		bConnected = false // true установиться в потоке can
+		// bConnected = false // true установиться в потоке can
 
 	}
 }
@@ -599,6 +617,7 @@ func activityWindow() {
 		if gBU.Variant == BU4 {
 			gForm.CheckTurt.Enable()
 			gForm.CheckTurt.SetChecked(false)
+			bOkServiceModeBU4 = false
 		}
 
 		if gBU.Variant != BU4 {
@@ -931,7 +950,7 @@ var idx uint
 func getCAN() {
 
 	go func() {
-		threadActivityOk <- 1
+		// threadActivityOk <- 1
 		stop := false
 		ch, idx = can25.GetMsgChannelCopy()
 
@@ -952,8 +971,27 @@ func getCAN() {
 						gDataCAN[msg.ID] = msg.Data
 					}
 
-					if msg.ID == idTimeBU {
-						bConnected = true
+					// if msg.ID == idTimeBU {
+					// 	bConnected = true
+					// }
+
+					if msg.ID == idBu3pSysInfo {
+						receiveMsgBu3pSysInfo.Data = msg.Data
+					}
+
+					if msg.ID == idSysInfo {
+						msgSysInfo.Data = msg.Data
+					}
+
+					if msg.ID == BU4_SYS_INFO {
+						if msg.Data[0] == SERVICE_MODE && msg.Data[1] == 1 {
+							// logInfo = fmt.Sprintf("Блок перешел в режим обслуживания.")
+							bOkServiceModeBU4 = true
+						}
+					}
+
+					if msg.ID == idTimeBU { // todo можно сделать прием не так часто
+						msgTime.Data = msg.Data
 					}
 
 					mu.Unlock()
@@ -1835,13 +1873,11 @@ func top() fyne.CanvasObject {
 		// ShowMessage(" ")
 
 		// для БУ-4 выход из режима обслуживания - перезагрузка
-		// if on && gBU.Variant == BU4 {
-		// 	// if bConnected {
-		// 	// 	gForm.CheckTurt.Enable()
-		// 	// 	gForm.CheckTurt.SetChecked(false)
-		// 	// }
-		// 	resetCheckTurt = true
-		// }
+		if !on && gBU.Variant == BU4 { // снять чек при выключении питания
+
+			gForm.CheckTurt.SetChecked(false)
+
+		}
 	})
 	gForm.CheckPower.SetChecked(true)
 
