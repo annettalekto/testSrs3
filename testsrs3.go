@@ -47,6 +47,10 @@ var bOkIPK bool
 var bConnected bool
 var wasbConnected bool // предыдущее состояние соединения
 
+var threadActivityOk = make(chan int)
+
+var box4 *container.Split
+
 var w fyne.Window
 
 func main() {
@@ -60,6 +64,8 @@ func main() {
 		}
 	}()
 
+	// time.Sleep(1500 * time.Millisecond)
+
 	// Инит
 	var b candev.Builder
 	err := errors.New("")
@@ -72,7 +78,10 @@ func main() {
 	} else {
 		bOkCAN = true
 		can25.Run()
-		defer can25.Stop()
+		defer func() {
+			can25.Stop()
+			bConnected = false
+		}()
 	}
 
 	errConfig := true
@@ -146,7 +155,7 @@ func main() {
 
 	boxCAN := getListCAN()
 
-	box4 := container.NewHSplit(box3, boxCAN)
+	box4 = container.NewHSplit(box3, boxCAN)
 
 	box := container.NewVSplit(box4, gStatusLabel)
 
@@ -170,57 +179,130 @@ func main() {
 	switch {
 
 	case !bOkCAN:
-		ErrorDialog("Ошибка CAN", "Выход", "Подключите CAN адаптер")
+		ErrorDialog("Ошибка CAN", "Выход", "Подключите CAN адаптер. Перезапустите программу.")
 
 	case !bOkIPK:
-		ErrorDialog("Ошибка ИПК", "Выход", "Подключите ИПК")
+		ErrorDialog("Ошибка ИПК", "Выход", "Подключите ИПК. Перезапустите программу.")
 
 	default:
-		go threadInitUPP()
+		activityWindow()
+		// go threadInitUPP()
 		go threadActivity()
 		go processScreen()
+		go threadIPK()
 	}
+
+	// Делаем Сплиты неподвижным
+	go func() {
+		sec := time.NewTicker(10 * time.Millisecond)
+		for range sec.C {
+			if box4.Offset != 0.0 {
+				box4.SetOffset(0.0)
+			}
+
+			if box1.Offset != 0.5 {
+				box1.SetOffset(0.5)
+			}
+		}
+	}()
 
 	// запуск формы
 	w.SetContent(box)
 	w.ShowAndRun()
 }
 
-var canOk = make(chan int)
-
 /*
 Ожидание соединения, загрузка формы БУ
 */
-func threadInitUPP() {
+// func threadInitUPP() {
+// 	var canmsg bool // ipk,
+// 	activityWindow()
+// 	sec := time.NewTicker(500 * time.Millisecond)
+// 	for range sec.C {
+// 		if !canmsg {
+// 			// Получение сообщений CAN
+// 			if !bConnected {
+// 				fmt.Println("Блок БУ не обнаружен")
+// 				ShowMessage("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
+// 			} else {
+// 				fmt.Println("CAN OK")
+// 				canmsg = true
+// CAN работает, пробуем получить признаки
+//				// if err := readUPPfromBU(); err == nil {
+// 				ShowMessage("Соединение с БУ установлено")
+// 				// } else {
+// 				// 	ShowMessage(err.Error())
+// 				// 	fmt.Println(err.Error())
+// 				// }
+// 				// refreshForm()
+// 			}
+// 		}
+// 		if canmsg {
+// 			fmt.Println("Init OK. Let's work!")
+// 			canOk <- 1
+// 			break
+// 		}
+// 	}
+// }
 
-	var canmsg bool // ipk,
-	activityWindow()
+var timeInitIPK *time.Timer
 
-	sec := time.NewTicker(500 * time.Millisecond)
+/*
+Проверка соединения с ИПК
+При отсутвии соединения с модулем переинициализация
+*/
+func threadIPK() {
+
+	errF, errB, errA := true, true, true
+	timerOn := false
+	var err error
+
+	sec := time.NewTicker(1000 * time.Millisecond)
 	for range sec.C {
-		if !canmsg {
-			// Получение сообщений CAN
-			if !bConnected {
-				fmt.Println("Блок БУ не обнаружен")
-				ShowMessage("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
 
-			} else {
-				fmt.Println("CAN OK")
-				canmsg = true
-				// CAN работает, пробуем получить признаки
-				if err := readUPPfromBU(); err == nil {
-					ShowMessage("Соединение с БУ установлено")
-				} else {
-					ShowMessage(err.Error())
-					fmt.Println(err.Error())
-				}
-				refreshForm()
+		errA = ipkBox.AnalogDev.Active()
+		errB = ipkBox.BinDev.Active()
+		errF = ipkBox.FreqDev.Active()
+
+		if !errA || !errB || !errF {
+
+			if !errA {
+				ipkBox.AnalogDev.Close()
 			}
-		}
-		if canmsg {
-			fmt.Println("Init OK. Let's work!")
-			canOk <- 1
-			break
+			if !errB {
+				ipkBox.BinDev.Close()
+			}
+			if !errF {
+				ipkBox.FreqDev.Close()
+			}
+
+			err = initIPK()
+			if err != nil {
+				fmt.Println(err)
+				ShowMessage(fmt.Sprintf("%v", err), 2)
+				// bOkIPK = false // todo мб не тут
+			} else {
+				ShowMessage("Соединение с ИПК установлено", 2)
+			}
+
+			// если таймер не запущен запутстить
+			if !timerOn {
+				timerOn = true
+				timeInitIPK = time.AfterFunc(8*time.Second, func() { // даем время на включение ипк, если в течении времени t ипк не будет инициализирован, то выведем сообщение  с просьбой включить ипк
+					dialog.ShowCustomError("Ошибка ИПК", "Ок", "Подключите ИПК.", func(b bool) {}, w)
+					bOkIPK = false // todo мб не тут
+
+					selectDevice.Disable() // todo отдельный поток для запретов и разрешений отображения форм и т д
+				})
+			}
+
+		} else {
+			if timeInitIPK != nil {
+				timeInitIPK.Stop()
+			}
+			timerOn = false
+			bOkIPK = true
+			selectDevice.Enable()
 		}
 	}
 }
@@ -230,11 +312,13 @@ func threadInitUPP() {
 Блокировка полей ввода, кнопок при отсутвии БУ
 */
 func threadActivity() {
-	<-canOk
+	<-threadActivityOk
+	resetScren()
 	sec := time.NewTicker(1500 * time.Millisecond)
 	for range sec.C {
 		if bConnected {
-			setStatus("УПП получены с блока") // Сообщение будет перекрывать все остальные
+			setStatus("Соединение с БУ установлено")
+			// setStatus("УПП получены с блока") // Сообщение будет перекрывать все остальные
 
 		} else {
 			fmt.Println("Блок БУ не обнаружен")
@@ -247,6 +331,7 @@ func threadActivity() {
 		}
 
 		bConnected = false // true установиться в потоке can
+
 	}
 }
 
@@ -254,7 +339,7 @@ var textMessage, textStatus string // значение последнего ст
 var bShowMessage = false           // признак нового сообщения
 var timer *time.Timer
 
-const showMessageTime = 5
+// const showMessageTime = 5
 
 // устанавоиваем текущий статус
 func setStatus(message string) {
@@ -266,7 +351,7 @@ func setStatus(message string) {
 bShowMessage признак нового сообщения
 showMessageTime - сколько с будет отображаться сообщение на экране.
 */
-func ShowMessage(message string) {
+func ShowMessage(message string, messageTime time.Duration) {
 
 	if bShowMessage {
 		timer.Stop()
@@ -276,9 +361,16 @@ func ShowMessage(message string) {
 
 	textMessage = message
 
-	timer = time.AfterFunc(showMessageTime*time.Second, func() {
+	timer = time.AfterFunc(messageTime*time.Second, func() {
 		bShowMessage = false // Время отображения сообщения истекло
 	})
+}
+
+func resetScren() {
+	bShowMessage = false
+	timer.Stop()
+	textMessage = ""
+	textStatus = ""
 }
 
 // Поток для вывода подсказок и ошибок
@@ -398,30 +490,6 @@ func changeFormBU4() {
 		gForm.CheckTurt.SetChecked(false)
 	}
 
-	// if gBU.NumberDUP == 1 {
-	// 	gForm.EntrySpeed2.Entry.Disable()
-	// 	gForm.EntryAccel2.Entry.Disable()
-	// } else { // gBU.NumberDUP == 2
-	// 	if !bConnected {
-	// 		gForm.EntrySpeed2.Entry.Disable()
-	// 		gForm.EntryAccel2.Entry.Disable()
-	// 	} else {
-	// 		gForm.EntrySpeed2.Entry.Enable()
-	// 		gForm.EntryAccel2.Entry.Enable()
-	// 	}
-	// }
-	// if gBU.NumberDD == 1 {
-	// 	gForm.EntryPress2.Entry.Disable()
-	// 	gForm.EntryPress3.Entry.Disable()
-	// } else { //gBU.NumberDD == 2
-	// 	gForm.EntryPress3.Entry.Disable()
-	// 	if !bConnected {
-	// 		gForm.EntryPress2.Entry.Disable()
-	// 	} else {
-	// 		gForm.EntryPress2.Entry.Enable()
-	// 	}
-	// }
-
 	gForm.BoxBUS.Hide()
 	gForm.BoxOut50V.Hide()
 	gForm.BoxOut10V.Hide()
@@ -449,14 +517,6 @@ func refreshForm() (err error) {
 		gForm.CheckTurt.Text = "TURT"
 		gForm.CheckTurt.Refresh()
 
-		// if !bConnected {
-		// 	gForm.EntrySpeed2.Entry.Disable()
-		// 	gForm.EntryAccel2.Entry.Disable()
-		// 	gForm.EntryPress2.Entry.Disable()
-		// 	gForm.EntryPress3.Entry.Disable()
-		// } else {
-		// 	gForm.EntrySpeed2.Entry.Enable()
-		// 	gForm.EntryAccel2.Entry.Enable()
 		// 	gForm.EntryPress2.Entry.Enable()
 		// 	gForm.EntryPress3.Entry.Enable()
 		// }
@@ -517,6 +577,12 @@ func activityWindow() {
 		return
 
 	} else {
+
+		// if resetCheckTurt {
+		// 	gForm.CheckTurt.Enable()
+		// 	gForm.CheckTurt.SetChecked(false)
+		// 	resetCheckTurt = false
+		// }
 
 		startButton.Enable()
 		buttonMileage.Enable()
@@ -622,10 +688,10 @@ func getListCAN() fyne.CanvasObject {
 		if strings.HasPrefix(data[id], "H") {
 			sCodeError := strings.TrimPrefix(data[id], "H")
 			sErrorDescription := getErrorDescription(sCodeError)
-			ShowMessage(fmt.Sprintf("H%s: %s", sCodeError, sErrorDescription))
+			ShowMessage(fmt.Sprintf("H%s: %s", sCodeError, sErrorDescription), 4)
 			list.Unselect(id) // сбросить выделение пункта, чтобы сново можно было по нему тыкать и получать подсказку
 		} else {
-			ShowMessage("")
+			ShowMessage("", 2)
 		}
 	}
 
@@ -859,11 +925,15 @@ func requestCAN() {
 	}()
 }
 
+var ch <-chan candev.Message
+var idx uint
+
 func getCAN() {
 
 	go func() {
+		threadActivityOk <- 1
 		stop := false
-		ch, _ := can25.GetMsgChannelCopy()
+		ch, idx = can25.GetMsgChannelCopy()
 
 		for !stop {
 			select {
@@ -894,6 +964,7 @@ func getCAN() {
 			runtime.Gosched()
 		}
 	}()
+
 }
 
 //---------------------------------------------------------------------------//
@@ -941,7 +1012,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 1)\n")
-			ShowMessage("Ошибка в поле ввода «Скорость 1»")
+			ShowMessage("Ошибка в поле ввода «Скорость 1»", 4)
 			return
 		}
 		if sep, _ := separately.Get(); !sep {
@@ -949,24 +1020,24 @@ func speed() fyne.CanvasObject {
 			gForm.EntrySpeed2.SetText(str)
 		}
 		if speed1 > float64(speedLimit) {
-			ShowMessage(fmt.Sprintf("Скорость 1: максимум %d км/ч", speedLimit))
+			ShowMessage(fmt.Sprintf("Скорость 1: максимум %d км/ч", speedLimit), 4)
 		}
 		if speed2 > float64(speedLimit) {
-			ShowMessage(fmt.Sprintf("Скорость 2: максимум %d км/ч", speedLimit))
+			ShowMessage(fmt.Sprintf("Скорость 2: максимум %d км/ч", speedLimit), 4)
 		}
 	}
 	entrySpeed1.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if speed1 > float64(speedLimit) || speed2 > float64(speedLimit) {
-			ShowMessage("Ошибка установки скорости")
+			ShowMessage("Ошибка установки скорости", 4)
 			return
 		}
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
-			ShowMessage("Ошибка установки скорости")
+			ShowMessage("Ошибка установки скорости", 4)
 			return
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		if strings.Contains(str, ".") {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 			gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
@@ -984,7 +1055,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if speed2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (скорость 2)\n")
-			ShowMessage("Ошибка в поле ввода «Скорость 2»")
+			ShowMessage("Ошибка в поле ввода «Скорость 2»", 4)
 			return
 		}
 		if sep, _ := separately.Get(); !sep {
@@ -992,23 +1063,23 @@ func speed() fyne.CanvasObject {
 			entrySpeed1.Entry.SetText(str)
 		}
 		if speed1 > float64(speedLimit) {
-			ShowMessage(fmt.Sprintf("Скорость 1: максимум %d км/ч", speedLimit))
+			ShowMessage(fmt.Sprintf("Скорость 1: максимум %d км/ч", speedLimit), 4)
 		}
 		if speed2 > float64(speedLimit) {
-			ShowMessage(fmt.Sprintf("Скорость 2: максимум %d км/ч", speedLimit))
+			ShowMessage(fmt.Sprintf("Скорость 2: максимум %d км/ч", speedLimit), 4)
 		}
 	}
 	gForm.EntrySpeed2.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if speed1 > float64(speedLimit) || speed2 > float64(speedLimit) {
-			ShowMessage("Ошибка установки скорости")
+			ShowMessage("Ошибка установки скорости", 4)
 		}
 		if err = sp.SetSpeed(speed1, speed2); err != nil {
 			fmt.Printf("Ошибка установки скорости")
-			ShowMessage("Ошибка установки скорости")
+			ShowMessage("Ошибка установки скорости", 4)
 			return
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		if strings.Contains(str, ".") {
 			entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", speed1))
 			gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", speed2))
@@ -1031,7 +1102,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 1)\n")
-			ShowMessage("Ошибка в поле ввода «Ускорение 1»")
+			ShowMessage("Ошибка в поле ввода «Ускорение 1»", 4)
 			return
 		}
 		if sep, _ := separately.Get(); !sep {
@@ -1039,24 +1110,24 @@ func speed() fyne.CanvasObject {
 			gForm.EntryAccel2.Entry.SetText(str)
 		}
 		if accel1 > accelLimit {
-			ShowMessage(fmt.Sprintf("Ускорение 1: максимум %.0f км/ч", accelLimit))
+			ShowMessage(fmt.Sprintf("Ускорение 1: максимум %.0f км/ч", accelLimit), 4)
 		}
 		if accel2 > accelLimit {
-			ShowMessage(fmt.Sprintf("Ускорение 2: максимум %.0f км/ч", accelLimit))
+			ShowMessage(fmt.Sprintf("Ускорение 2: максимум %.0f км/ч", accelLimit), 4)
 		}
 	}
 	entryAccel1.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if accel1 > accelLimit || accel2 > accelLimit {
-			ShowMessage("Ошибка установки ускорения")
+			ShowMessage("Ошибка установки ускорения", 4)
 			return
 		}
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
-			ShowMessage("Ошибка установки ускорения")
+			ShowMessage("Ошибка установки ускорения", 4)
 			return
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
 		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
@@ -1069,7 +1140,7 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if accel2, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (ускорение 2)\n")
-			ShowMessage("Ошибка в поле ввода «Ускорение 2»")
+			ShowMessage("Ошибка в поле ввода «Ускорение 2»", 4)
 			return
 		}
 		if sep, _ := separately.Get(); !sep {
@@ -1077,24 +1148,24 @@ func speed() fyne.CanvasObject {
 			entryAccel1.Entry.SetText(str)
 		}
 		if accel1 > accelLimit {
-			ShowMessage(fmt.Sprintf("Ускорение 1: максимум %.0f км/ч", accelLimit))
+			ShowMessage(fmt.Sprintf("Ускорение 1: максимум %.0f км/ч", accelLimit), 4)
 		}
 		if accel2 > accelLimit {
-			ShowMessage(fmt.Sprintf("Ускорение 2: максимум %.0f км/ч", accelLimit))
+			ShowMessage(fmt.Sprintf("Ускорение 2: максимум %.0f км/ч", accelLimit), 4)
 		}
 	}
 	gForm.EntryAccel2.Entry.OnSubmitted = func(str string) {
 		selectAll()
 		if accel1 > accelLimit || accel2 > accelLimit {
-			ShowMessage("Ошибка установки ускорения")
+			ShowMessage("Ошибка установки ускорения", 4)
 			return
 		}
 		if err = sp.SetAcceleration(accel1*100, accel2*100); err != nil {
 			fmt.Printf("Ошибка установки ускорения\n")
-			ShowMessage("Ошибка установки ускорения")
+			ShowMessage("Ошибка установки ускорения", 4)
 			return
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", accel1))
 		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.2f", accel2))
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
@@ -1119,7 +1190,7 @@ func speed() fyne.CanvasObject {
 		}
 
 		if err = sp.SetMotion(direction); err != nil { // todo должно быть два напревления
-			ShowMessage("Ошибка установки направления движения")
+			ShowMessage("Ошибка установки направления движения", 4)
 			return
 		}
 		fmt.Printf("Направление: %s\n", s)
@@ -1160,40 +1231,40 @@ func speed() fyne.CanvasObject {
 			return
 		}
 		if strings.Contains(str, ".") { // запятая?
-			ShowMessage("Ошибка в поле ввода «Дистанция»: введите целое число")
+			ShowMessage("Ошибка в поле ввода «Дистанция»: введите целое число", 4)
 			return
 		}
 		d, err := strconv.Atoi(str)
 		if err != nil {
 			setDistance = 0
 			fmt.Printf("Ошибка перевода строки в число (путь)\n")
-			ShowMessage("Ошибка в поле ввода «Дистанция»")
+			ShowMessage("Ошибка в поле ввода «Дистанция»", 4)
 			return
 		}
 		setDistance = uint32(d)
 
 		if setDistance > distanceLimit {
-			ShowMessage(fmt.Sprintf("Дистанция: максимум %d м", distanceLimit))
+			ShowMessage(fmt.Sprintf("Дистанция: максимум %d м", distanceLimit), 4)
 		}
 	}
 
 	startMileage := func() bool {
 		if setDistance > distanceLimit {
-			ShowMessage("Ошибка установки пути")
+			ShowMessage("Ошибка установки пути", 4)
 			return false
 		}
 		if err = sp.SetLimitWay(setDistance); err != nil {
 			fmt.Printf("Ошибка установки пути\n")
-			ShowMessage("Ошибка установки пути")
+			ShowMessage("Ошибка установки пути", 4)
 			return false
 		}
 		time.Sleep(1 * time.Second) // не успевает сбросится счетчик
 		if startDistance, _, err = sp.GetWay(); err != nil {
 			fmt.Printf("Ошибка: не получено значение пути с ИПК\n")
-			ShowMessage("Ошибка: не получено значение пути с ИПК")
+			ShowMessage("Ошибка: не получено значение пути с ИПК", 4)
 			return false
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		fmt.Printf("Путь: %d м (%v)\n", setDistance, err)
 		distanceCheck = true
 		entryMileage.Entry.SetText(fmt.Sprintf("%d", setDistance))
@@ -1246,10 +1317,10 @@ func speed() fyne.CanvasObject {
 				m, _, err := sp.GetWay()
 				if err != nil {
 					fmt.Printf("Не получено значение пути с ИПК\n")
-					ShowMessage("Ошибка: не получено значение пути с ИПК")
+					ShowMessage("Ошибка: не получено значение пути с ИПК", 4)
 					break
 				} else {
-					ShowMessage(" ")
+					ShowMessage(" ", 2)
 				}
 				fmt.Println(m)
 				m -= startDistance
@@ -1279,14 +1350,14 @@ func speed() fyne.CanvasObject {
 		str = strings.ReplaceAll(str, ",", ".")
 		if press1, err = strconv.ParseFloat(str, 64); err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 1)\n")
-			ShowMessage("Ошибка в поле ввода «Давление 1»")
+			ShowMessage("Ошибка в поле ввода «Давление 1»", 4)
 			return
 		}
 		if press1 > limit1 {
-			ShowMessage(fmt.Sprintf("Давление 1: максимум %.0f кгс/см2", limit1))
+			ShowMessage(fmt.Sprintf("Давление 1: максимум %.0f кгс/см2", limit1), 4)
 		}
 		if press1 < 0 {
-			ShowMessage(fmt.Sprintf("Давление должно быть положительным"))
+			ShowMessage(fmt.Sprintf("Давление должно быть положительным"), 4)
 		}
 	}
 	entryPress1.Entry.OnSubmitted = func(str string) {
@@ -1298,10 +1369,10 @@ func speed() fyne.CanvasObject {
 		}
 		if err != nil {
 			fmt.Printf("Ошибка установки давления 1\n")
-			ShowMessage("Ошибка установки давления 1")
+			ShowMessage("Ошибка установки давления 1", 4)
 			return
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		fmt.Printf("Давление 1: %.2f кгс/см2 (%v)\n", math.Abs(press1), err)
 		entryPress1.Entry.SetText(fmt.Sprintf("%.2f", math.Abs(press1)))
 	}
@@ -1315,15 +1386,15 @@ func speed() fyne.CanvasObject {
 		press2, err = strconv.ParseFloat(str, 64)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 2)\n")
-			ShowMessage("Ошибка в поле ввода «Давление 2»")
+			ShowMessage("Ошибка в поле ввода «Давление 2»", 4)
 			return
 		}
 		limit2 = gBU.PressureLimit
 		if press2 > limit2 {
-			ShowMessage(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2))
+			ShowMessage(fmt.Sprintf("Давление 2: максимум %.0f кгс/см2", limit2), 4)
 		}
 		if press2 < 0 {
-			ShowMessage(fmt.Sprintf("Давление должно быть положительным"))
+			ShowMessage(fmt.Sprintf("Давление должно быть положительным"), 4)
 		}
 	}
 	gForm.EntryPress2.Entry.OnSubmitted = func(str string) {
@@ -1335,10 +1406,10 @@ func speed() fyne.CanvasObject {
 		}
 		if err != nil {
 			fmt.Printf("Ошибка установки давления 2\n")
-			ShowMessage("Ошибка установки давления 2")
+			ShowMessage("Ошибка установки давления 2", 4)
 			return
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		fmt.Printf("Давление 2: %.2f кгс/см2 (%v)\n", math.Abs(press2), err)
 		gForm.EntryPress2.Entry.SetText(fmt.Sprintf("%.2f", math.Abs(press2)))
 	}
@@ -1352,14 +1423,14 @@ func speed() fyne.CanvasObject {
 		press3, err = strconv.ParseFloat(str, 64)
 		if err != nil {
 			fmt.Printf("Ошибка перевода строки в число (давление 3)\n")
-			ShowMessage("Ошибка в поле ввода «Давление 3»")
+			ShowMessage("Ошибка в поле ввода «Давление 3»", 4)
 			return
 		}
 		if press3 > limit3 {
-			ShowMessage(fmt.Sprintf("Давление 3: максимум %.0f кгс/см2", limit3))
+			ShowMessage(fmt.Sprintf("Давление 3: максимум %.0f кгс/см2", limit3), 4)
 		}
 		if press3 < 0 {
-			ShowMessage(fmt.Sprintf("Давление должно быть положительным"))
+			ShowMessage(fmt.Sprintf("Давление должно быть положительным"), 4)
 		}
 	}
 	gForm.EntryPress3.Entry.OnSubmitted = func(str string) {
@@ -1368,7 +1439,7 @@ func speed() fyne.CanvasObject {
 			fmt.Printf("Ошибка установки давления 3\n")
 			return
 		}
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		fmt.Printf("Давление 3: %.2f кгс/см2 (%v)\n", math.Abs(press3), err)
 		gForm.EntryPress3.Entry.SetText(fmt.Sprintf("%.2f", math.Abs(press3)))
 	}
@@ -1730,6 +1801,9 @@ func inputSignals() fyne.CanvasObject {
 //
 // ---------------------------------------------------------------------------//
 var buttonUPP *widget.Button
+var selectDevice *widget.Select
+
+// var resetCheckTurt bool
 
 func top() fyne.CanvasObject {
 
@@ -1738,7 +1812,7 @@ func top() fyne.CanvasObject {
 		if on { // если установили чек, а не сбросили
 			if gBU.Variant == BU4 {
 				ok, msg := setServiceModeBU4()
-				ShowMessage(msg)
+				ShowMessage(msg, 4)
 				if !ok {
 					gForm.CheckTurt.SetChecked(false)
 				} else {
@@ -1760,18 +1834,19 @@ func top() fyne.CanvasObject {
 		gBU.Power(on)
 		// ShowMessage(" ")
 
-		if on && gBU.Variant == BU4 {
-			// для БУ-4 выход из режима обслуживания - перезагрузка
-			if bConnected {
-				gForm.CheckTurt.Enable()
-				gForm.CheckTurt.SetChecked(false)
-			}
-		}
+		// для БУ-4 выход из режима обслуживания - перезагрузка
+		// if on && gBU.Variant == BU4 {
+		// 	// if bConnected {
+		// 	// 	gForm.CheckTurt.Enable()
+		// 	// 	gForm.CheckTurt.SetChecked(false)
+		// 	// }
+		// 	resetCheckTurt = true
+		// }
 	})
 	gForm.CheckPower.SetChecked(true)
 
 	// Смена блока туть
-	var selectDevice *widget.Select
+
 	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
 		config.DeviceVariant = OptionsBU(selectDevice.SelectedIndex())
 		writeFyneAPP(config)
@@ -1783,7 +1858,7 @@ func top() fyne.CanvasObject {
 	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
 
 	buttonUPP = widget.NewButton("  УПП  ", func() {
-		ShowMessage(" ")
+		ShowMessage(" ", 2)
 		buttonUPP.Disable()
 		showFormUPP()
 		// buttonUPP.Enable()

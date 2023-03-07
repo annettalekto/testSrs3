@@ -97,6 +97,7 @@ func initIPK() (err error) {
 	if !ipkBox.AnalogDev.Open() {
 		errA = false
 	}
+
 	if !ipkBox.BinDev.Open() {
 		errB = false
 	}
