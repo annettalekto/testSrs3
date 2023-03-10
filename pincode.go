@@ -63,7 +63,7 @@ func setServiceModeBU4() (ok bool, logInfo string) {
 
 			attemptCounter := 0
 			for {
-				if bOkServiceModeBU4 {
+				if bServiceModeBU4 {
 					logInfo = fmt.Sprintf("Блок перешел в режим обслуживания (выход - перезагрузка).")
 					ok = true
 					break
@@ -90,6 +90,6 @@ func setServiceModeBU4() (ok bool, logInfo string) {
 }
 
 func isServiceModeBU4() (ok bool) {
-	ok = bOkServiceModeBU4
+	ok = bServiceModeBU4
 	return
 }
