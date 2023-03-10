@@ -51,7 +51,8 @@ var bServiceModeBU4 bool
 
 // var threadActivityOk = make(chan int)
 
-var box4 *container.Split
+// var box4 *container.Split
+// var box *container.Split
 
 var w fyne.Window
 
@@ -152,7 +153,7 @@ func main() {
 
 	boxCAN := getListCAN()
 
-	box4 = container.NewHSplit(box3, boxCAN)
+	box4 := container.NewHSplit(box3, boxCAN)
 
 	box := container.NewVSplit(box4, gStatusLabel)
 
@@ -179,7 +180,7 @@ func main() {
 		ErrorDialog("Ошибка CAN", "Выход", "Не удалось произвести инициализацию CAN.\nПодключите CAN адаптер.\nПерезапустите программу.")
 
 	case !bConnectedIPK:
-		dialog.ShowCustomError("Ошибка ИПК", "Ок", "Подключите ИПК.", func(b bool) {}, w)
+		dialog.ShowCustomError("Ошибка ИПК", "Ок", "Не удалось произвести инициализацию ИПК.\nПроверьте подключение ИПК.", func(b bool) {}, w)
 		bTimerReset = false // сообщение выше
 		bConnectedIPK = false
 		fallthrough
@@ -202,6 +203,10 @@ func main() {
 
 			if box1.Offset != 0.5 {
 				box1.SetOffset(0.5)
+			}
+
+			if box.Offset != 0.5 {
+				box.SetOffset(0.5)
 			}
 		}
 	}()
@@ -408,7 +413,14 @@ func threadShowForm() {
 	sec := time.NewTicker(500 * time.Millisecond)
 	for range sec.C {
 		if bConnectedCAN {
-			setStatus("Соединение с БУ установлено")
+			if bServiceModeBU4 {
+				setStatus("Соединение с БУ установлено. Режим обслуживания.")
+			} else if bTurt {
+				setStatus("Соединение с БУ установлено. Режим TURT.")
+			} else {
+				setStatus("Соединение с БУ установлено.")
+			}
+
 		} else {
 			fmt.Println("Блок БУ не обнаружен")
 			setStatus("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
@@ -486,10 +498,14 @@ func activityWindow() {
 				gForm.CheckTurt.Disable()
 			} else {
 				gForm.CheckTurt.SetChecked(false)
-				gForm.CheckTurt.Enable()
+				if !bTrip && !bMotion {
+					gForm.CheckTurt.Enable()
+				}
 			}
 		} else {
-			gForm.CheckTurt.Enable()
+			if !bTrip && !bMotion {
+				gForm.CheckTurt.Enable()
+			}
 		}
 
 		selectDevice.Enable()
@@ -547,6 +563,26 @@ func activityWindow() {
 			startSpeedButton.SetText("Ок")
 		}
 
+		if bTurt || bServiceModeBU4 {
+
+			selectDevice.Disable()
+
+			buttonMileage.Disable()
+			entryMileage.Disable()
+
+			startSpeedButton.Disable()
+			entrySpeed1.Disable()
+			gForm.EntrySpeed2.Entry.Disable()
+			entryAccel1.Disable()
+			gForm.EntryAccel2.Entry.Disable()
+
+			startPressButton.Disable()
+			entryPress1.Disable()
+			gForm.EntryPress2.Entry.Disable()
+			gForm.EntryPress3.Entry.Disable()
+
+			radioDirection.Disable()
+		}
 	}
 
 }
@@ -1121,6 +1157,7 @@ func getCAN() {
 
 var bMotion = false
 var bTrip = false
+var bTurt = false
 
 func newSpecialEntry(initValue string) (e *numericalEntry) {
 	e = newNumericalEntry()
@@ -1441,6 +1478,10 @@ func speed() fyne.CanvasObject {
 	startMileage := func() bool {
 		currentDistance.Set("0")
 
+		if setDistance == 0 {
+			ShowMessage("Ошибка установки пути", 4)
+			return false
+		}
 		if setDistance > distanceLimit {
 			ShowMessage("Ошибка установки пути", 4)
 			return false
@@ -1458,13 +1499,20 @@ func speed() fyne.CanvasObject {
 		}
 		ShowMessage(" ", 2)
 		fmt.Printf("Путь: %d м (%v)\n", setDistance, err)
-		bTrip = true
+
 		entryMileage.Entry.SetText(fmt.Sprintf("%d", setDistance))
 		// скорость должны установить сами в поле ввода скорости
 		entrySpeed1.Entry.OnSubmitted(entrySpeed1.Entry.Text)
 		gForm.EntrySpeed2.Entry.OnSubmitted(gForm.EntrySpeed2.Entry.Text)
 		entryAccel1.Entry.OnSubmitted(entryAccel1.Entry.Text)
 		gForm.EntryAccel2.Entry.OnSubmitted(gForm.EntryAccel2.Entry.Text)
+
+		if accel1 == 0 && accel2 == 0 && speed1 == 0 && speed2 == 0 {
+			ShowMessage("Ошибка: не получено значение скорости или ускорения", 4)
+			return false
+		}
+
+		bTrip = true
 		return true
 	}
 
@@ -1498,9 +1546,11 @@ func speed() fyne.CanvasObject {
 	// запуск по нажатию Enter
 	entryMileage.Entry.OnSubmitted = func(str string) {
 		if !bTrip {
-			if startMileage() {
-				buttonMileage.SetText("Стоп")
-			}
+			// if
+			startMileage()
+			// {
+			// 	buttonMileage.SetText("Стоп")
+			// }
 		}
 	}
 
@@ -2024,10 +2074,12 @@ func top() fyne.CanvasObject {
 
 			} else {
 				gBU.Turt(on)
+				bTurt = true
 			}
 		} else { // сбросили чек
 			if gBU.Variant != BU4 { // off TURT
 				gBU.Turt(on)
+				bTurt = false
 			}
 			fmt.Println("Режим обслуживания сброшен")
 		}
@@ -2054,7 +2106,6 @@ func top() fyne.CanvasObject {
 		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
 		readUPPfromBU()
 		refreshForm()
-
 	})
 	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
 
@@ -2186,8 +2237,12 @@ func showFormUPP() {
 			gForm.CheckPower.SetChecked(false)
 		}
 	})
+
 	if gBU.Variant == BU3P {
 		writeButton.Hide()
+	}
+	if bMotion || bTrip {
+		writeButton.Disable()
 	}
 
 	readTomlButton := widget.NewButton("Сохранённые УПП", func() {
