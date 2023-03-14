@@ -267,6 +267,8 @@ func (bu *DescriptionBU) SetOperateMode() {
 
 	bu.Power(false)
 	bu.Turt(false)
+	gForm.CheckTurt.SetChecked(false)
+
 	time.Sleep(time.Second)
 	bu.Power(true)
 	time.Sleep(5 * time.Second)

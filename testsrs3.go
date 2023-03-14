@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"image/color"
 	"math"
 	"os"
 	"os/exec"
@@ -41,18 +42,11 @@ var config configType
 
 var can25 *candev.Device
 
-var bOkCAN bool
+var bInitCAN bool
 var bConnectedIPK bool
-
 var bConnectedCAN bool
-var wasbConnected bool // предыдущее состояние соединения
 
 var bServiceModeBU4 bool
-
-// var threadActivityOk = make(chan int)
-
-// var box4 *container.Split
-// var box *container.Split
 
 var w fyne.Window
 
@@ -69,15 +63,15 @@ func main() {
 
 	// Инит
 	var b candev.Builder
-	err := errors.New("")
+	var err error
 
 	can25, err = b.Speed(ixxatvci3.Bitrate25kbps).Get()
 	if err != nil {
-		bOkCAN = false
+		bInitCAN = false
 		fmt.Printf("Ошибка инициализации CAN: %v\n", err)
 		err = errors.New("Ошибка инициализации CAN")
 	} else {
-		bOkCAN = true
+		bInitCAN = true
 		can25.Run()
 		defer can25.Stop()
 	}
@@ -92,7 +86,7 @@ func main() {
 	// Форма
 	a := app.New()
 	w = a.NewWindow(config.ProgramName) // с окнами у fyne проблемы
-	w.Resize(fyne.NewSize(1024, 880))   // если размер менее, то баг при сворачивании
+	w.Resize(fyne.NewSize(1024, 850))   // если размер менее, то баг при сворачивании
 	w.SetFixedSize(true)                // не использовать без Resize
 
 	ic, _ := fyne.LoadResourceFromPath(config.Icon)
@@ -176,7 +170,7 @@ func main() {
 	*/
 	switch {
 
-	case !bOkCAN:
+	case !bInitCAN:
 		ErrorDialog("Ошибка CAN", "Выход", "Не удалось произвести инициализацию CAN.\nПодключите CAN адаптер.\nПерезапустите программу.")
 
 	case !bConnectedIPK:
@@ -186,11 +180,11 @@ func main() {
 		fallthrough
 
 	default:
-		// activityWindow()
 		go threadConnectionCAN()
 		go threadConnectionIPK()
 		go processScreen()
 		go threadShowForm()
+		go updateAfterReboot()
 	}
 
 	// Делаем Сплиты неподвижным
@@ -216,40 +210,6 @@ func main() {
 	w.ShowAndRun()
 }
 
-/*
-Ожидание соединения, загрузка формы БУ
-*/
-// func threadInitUPP() {
-// 	var canmsg bool // ipk,
-// 	activityWindow()
-// 	sec := time.NewTicker(500 * time.Millisecond)
-// 	for range sec.C {
-// 		if !canmsg {
-// 			// Получение сообщений CAN
-// 			if !bConnected {
-// 				fmt.Println("Блок БУ не обнаружен")
-// 				ShowMessage("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
-// 			} else {
-// 				fmt.Println("CAN OK")
-// 				canmsg = true
-// CAN работает, пробуем получить признаки
-//				// if err := readUPPfromBU(); err == nil {
-// 				ShowMessage("Соединение с БУ установлено")
-// 				// } else {
-// 				// 	ShowMessage(err.Error())
-// 				// 	fmt.Println(err.Error())
-// 				// }
-// 				// refreshForm()
-// 			}
-// 		}
-// 		if canmsg {
-// 			fmt.Println("Init OK. Let's work!")
-// 			canOk <- 1
-// 			break
-// 		}
-// 	}
-// }
-
 var timeInitIPK *time.Timer
 
 const (
@@ -259,7 +219,7 @@ const (
 	timeCheck        = 3
 )
 
-const durationInitIPK = 5
+const durationInitIPK = 4
 
 var bTimerReset = true
 
@@ -320,7 +280,7 @@ func threadConnectionIPK() {
 		case timeCheck:
 			bTimerReset = false
 			timeInitIPK = time.AfterFunc(durationInitIPK*time.Second, func() {
-				dialog.ShowCustomError("Ошибка ИПК", "Ок", "Подключите ИПК.", func(b bool) {}, w)
+				dialog.ShowCustomError("Ошибка ИПК", "Ок", "Потеряно соединение с ИПК.\nПодключите ИПК.", func(b bool) {}, w)
 				bConnectedIPK = false
 			})
 			stateCheck = reinitialization
@@ -334,50 +294,6 @@ func threadConnectionIPK() {
 			stateCheck = checkError
 
 		}
-		// errA = ipkBox.AnalogDev.Active()
-		// errB = ipkBox.BinDev.Active()
-		// errF = ipkBox.FreqDev.Active()
-		// // Есть ошибка
-		// if !errA || !errB || !errF {
-		// 	if !errA {
-		// 		ipkBox.AnalogDev.Close()
-		// 	}
-		// 	if !errB {
-		// 		ipkBox.BinDev.Close()
-		// 	}
-		// 	if !errF {
-		// 		ipkBox.FreqDev.Close()
-		// 	}
-		// 	err = initIPK()
-		// 	if err != nil { // не удалось переинициализировать
-		// 		fmt.Println(err)
-		// 		ShowMessage(fmt.Sprintf("%v", err), 2)
-		// 		// bConnectedIPK = false // todo мб не тут
-		// 	} else {
-		// 		ShowMessage("Соединение с ИПК установлено", 2)
-		// 	}
-		// 	// если таймер не запущен запутстить
-		// 	if bConnectedIPK {
-		// 		bConnectedIPK = false // todo мб не тут
-		// 		// даем время на включение ипк, если в течении времени t ипк не будет инициализирован, то выведем сообщение  с просьбой включить ипк
-		// 		// баг, ипк отваливается ни при выключени 50В, а при включении после выключения
-		// 		timeInitIPK = time.AfterFunc(8*time.Second, func() {
-		// 			dialog.ShowCustomError("Ошибка ИПК", "Ок", "Подключите ИПК.", func(b bool) {}, w)
-		// 			selectDevice.Disable() // todo отдельный поток для запретов и разрешений отображения форм и т д (при запуске при выключенном ИПК сделать сброс форм)
-		// 			gForm.CheckPower.Disable()
-		// 			gForm.CheckTurt.Disable()
-		// 			// gForm.Radio.Disable()
-		// 		})
-		// 	}
-		// } else { // нет ошибок
-		// 	if timeInitIPK != nil { // если запущен таймер - сбросить
-		// 		timeInitIPK.Stop()
-		// 	}
-		// 	bConnectedIPK = true
-		// 	selectDevice.Enable()
-		// 	gForm.CheckPower.Enable()
-		// 	// gForm.Radio.Enable()
-		// }
 	}
 }
 
@@ -404,6 +320,8 @@ func threadConnectionCAN() {
 	}
 }
 
+var rebootBU bool = true // отслеживаем перезагрузку блока, смену БУ, потерю соединения по CAN
+
 /*
 Блокировка полей ввода, кнопок при отсутвии соединения с БУ или ИПК
 */
@@ -424,16 +342,37 @@ func threadShowForm() {
 		} else {
 			fmt.Println("Блок БУ не обнаружен")
 			setStatus("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
+			rebootBU = true
 		}
-
-		// if wasbConnected != bConnectedCAN {
-		// 	wasbConnected = bConnectedCAN
 		activityWindow()
-		// }
 	}
 }
 
-// При отсутсвии соединения с ИПК и CAN адаптером поля ввода и функционал должен быть ограничен
+// Обновление данных после перезагрузки
+func updateAfterReboot() {
+	for {
+		if bConnectedCAN && rebootBU {
+			getVersionBU4()
+			rebootBU = false
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func getVersionBU4() {
+	if major, minor, patch, number, err := canGetVersionBU4(); err == nil {
+		gBU.VersionBU4 = fmt.Sprintf("Версия %d.%d.%d (в лоции №%d)", major, minor, patch, number)
+	} else {
+		fmt.Println("%V", err)
+	}
+}
+
+/*
+Ограничения функционала программы при ошибках и в определенных режимах работы
+Блокировка полей вводаБ кнопок и прочего функционала
+При отсутсвии соединения с ИПК bConnectedIPK и CAN адаптером bConnectedCAN,
+в режиме движения bMotion, в режиме поездки bTrip
+*/
 func activityWindow() {
 
 	if !bConnectedIPK && !bConnectedCAN {
@@ -465,11 +404,21 @@ func activityWindow() {
 	if bConnectedIPK && !bConnectedCAN {
 
 		gForm.CheckPower.Enable()
-		gForm.CheckTurt.Disable()
 
-		selectDevice.Disable()
+		if gBU.Variant == BU4 {
+			gForm.CheckTurt.Disable()
+		} else {
+			gForm.CheckTurt.Enable()
+		}
 
-		buttonUPP.Disable()
+		// selectDevice.Disable()
+		selectDevice.Enable()
+
+		if bTurt {
+			buttonUPP.Enable()
+		} else {
+			buttonUPP.Disable()
+		}
 
 		buttonMileage.Disable()
 		entryMileage.Disable()
@@ -492,6 +441,7 @@ func activityWindow() {
 	if bConnectedCAN && bConnectedIPK {
 
 		gForm.CheckPower.Enable()
+
 		if gBU.Variant == BU4 {
 			if bServiceModeBU4 {
 				gForm.CheckTurt.SetChecked(true)
@@ -505,6 +455,8 @@ func activityWindow() {
 		} else {
 			if !bTrip && !bMotion {
 				gForm.CheckTurt.Enable()
+			} else {
+				gForm.CheckTurt.Disable()
 			}
 		}
 
@@ -515,7 +467,6 @@ func activityWindow() {
 		buttonMileage.Enable()
 		entryMileage.Enable()
 
-		// startSpeedButton.Enable()
 		entrySpeed1.Enable()
 		entryAccel1.Enable()
 
@@ -541,6 +492,10 @@ func activityWindow() {
 				gForm.EntryPress2.Entry.Enable()
 				gForm.EntryPress3.Entry.Disable()
 			}
+
+			// if major, minor, patch, number, err := canGetVersionBU4(); err == nil {
+			// 	gBU.VersionBU4 = fmt.Sprintf("Версия %d.%d.%d (в лоции №%d)", major, minor, patch, number)
+			// }
 		}
 
 		startPressButton.Enable()
@@ -550,16 +505,17 @@ func activityWindow() {
 
 		if bTrip {
 			buttonMileage.SetText("Стоп")
-			startSpeedButton.Disable()
 		} else {
 			buttonMileage.SetText("Старт")
-			startSpeedButton.Enable()
 		}
+		startSpeedButton.Enable()
+		buttonMileage.Enable()
 
+		// Имитируем движение, запрет имитации пути
 		if bMotion && !bTrip {
 			startSpeedButton.SetText("Стоп")
 		}
-		if !bMotion {
+		if !bMotion || bMotion && bTrip {
 			startSpeedButton.SetText("Ок")
 		}
 
@@ -736,20 +692,11 @@ func changeFormBU4() {
 
 	gForm.CheckTurt.Text = "Режим обслуживания"
 	gForm.CheckTurt.Refresh()
-	// if isServiceModeBU4() {
-	// 	gForm.CheckTurt.SetChecked(true)
-	// } else {
-	// 	gForm.CheckTurt.SetChecked(false)
-	// }
 
 	gForm.BoxBUS.Hide()
 	gForm.BoxOut50V.Hide()
 	gForm.BoxOut10V.Hide()
 	gForm.Radio.Hide()
-
-	if major, minor, patch, number, err := canGetVersionBU4(); err == nil {
-		gBU.VersionBU4 = fmt.Sprintf("Версия %d.%d.%d (в лоции №%d)", major, minor, patch, number)
-	}
 }
 
 // обновить данные на форме если было изменено значение УПП или выбран новый блок
@@ -866,12 +813,18 @@ func getListCAN() fyne.CanvasObject {
 			data = nil
 			mapDataCAN := getDataCAN()
 
-			t := byteToTimeBU(mapDataCAN[idTimeBU])
-			data = append(data, fmt.Sprintf("Время БУ:  %s", t.Format("02.01.2006 15:04")))
+			if bConnectedCAN {
+				t := byteToTimeBU(mapDataCAN[idTimeBU])
+				data = append(data, fmt.Sprintf("Время БУ:  %s", t.Format("02.01.2006 15:04")))
+			} else {
+				data = append(data, "Время БУ: -")
+			}
 
 			if gBU.Variant == BU4 {
-				if gBU.VersionBU4 != "" {
+				if bConnectedCAN {
 					data = append(data, gBU.VersionBU4)
+				} else {
+					data = append(data, "Версия -.-.- (в лоции №-)")
 				}
 			} else {
 				if bytes, ok := mapDataCAN[idDigitalInd]; ok {
@@ -916,6 +869,20 @@ func getListCAN() fyne.CanvasObject {
 
 			if bytes, ok := mapDataCAN[idPressure]; ok {
 				tm, tc, gr := byteToPressure(bytes)
+
+				// БУ-3П на значение давления 0 присылвает в ответ 0.1
+				if gBU.Variant == BU3P {
+					if entryPress1.Entry.Text == "0.00" {
+						tm = 0.0
+					}
+					if gForm.EntryPress2.Text == "0.00" {
+						tc = 0.0
+					}
+					if gForm.EntryPress3.Text == "0.00" {
+						gr = 0.0
+					}
+				}
+
 				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТМ (кг/см²):", tm))
 				data = append(data, fmt.Sprintf("%-22s %.1f", "Давление ТЦ (кг/см²):", tc))
 				if gBU.Variant != BU4 {
@@ -1055,7 +1022,7 @@ func getListCAN() fyne.CanvasObject {
 			}
 
 			list.Refresh()
-			time.Sleep(2 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}()
 
@@ -1136,6 +1103,10 @@ func getCAN() {
 						}
 					}
 
+					if msg.ID == SYS_DATA {
+						msgSoftVersionBU4.Data = msg.Data
+					}
+
 					if msg.ID == idTimeBU { // todo можно сделать прием не так часто
 						msgTime.Data = msg.Data
 					}
@@ -1177,6 +1148,9 @@ var startSpeedButton *widget.Button
 var buttonMileage *widget.Button
 var startPressButton *widget.Button
 
+var currentSpeed1 binding.String
+var currentSpeed2 binding.String
+
 // Скорость, дистанция, давление
 func speed() fyne.CanvasObject {
 	var err error
@@ -1189,9 +1163,12 @@ func speed() fyne.CanvasObject {
 	speedLimit := 1000
 	dummy := widget.NewLabel("")
 
+	customDummy := canvas.NewText("dummy", color.White) // кастомный отступ
+	customDummy.TextSize = 4
+
 	// обработка скорости
-	entrySpeed1 = newSpecialEntry("0")
-	gForm.EntrySpeed2 = newSpecialEntry("0")
+	entrySpeed1 = newSpecialEntry("0.0")
+	gForm.EntrySpeed2 = newSpecialEntry("0.0")
 
 	entrySpeed1.Entry.OnChanged = func(str string) {
 		if str == "" {
@@ -1236,7 +1213,7 @@ func speed() fyne.CanvasObject {
 		fmt.Printf("Скорость: %.1f %.1f км/ч (%v)\n", speed1, speed2, err)
 		if speed1 != 0 || speed2 != 0 {
 			bMotion = true
-		} else if speed1 == 0 && speed2 == 0 {
+		} else if speed1 == 0 && speed2 == 0 && accel1 == 0 && accel2 == 0 {
 			bMotion = false
 		}
 	}
@@ -1283,7 +1260,7 @@ func speed() fyne.CanvasObject {
 		fmt.Printf("Скорость: %.1f %.1f  (%v)\n", speed1, speed2, err)
 		if speed1 != 0 || speed2 != 0 {
 			bMotion = true
-		} else if speed1 == 0 && speed2 == 0 {
+		} else if speed1 == 0 && speed2 == 0 && accel1 == 0 && accel2 == 0 {
 			bMotion = false
 		}
 	}
@@ -1332,7 +1309,7 @@ func speed() fyne.CanvasObject {
 
 		if accel1 != 0 || accel2 != 0 {
 			bMotion = true
-		} else if accel1 == 0 && accel2 == 0 {
+		} else if speed1 == 0 && speed2 == 0 && accel1 == 0 && accel2 == 0 {
 			bMotion = false
 		}
 	}
@@ -1375,7 +1352,7 @@ func speed() fyne.CanvasObject {
 		fmt.Printf("Ускорение: %.1f %.1f м/с2 (%v)\n", accel1, accel2, err)
 		if accel1 != 0 || accel2 != 0 {
 			bMotion = true
-		} else if accel1 == 0 && accel2 == 0 {
+		} else if speed1 == 0 && speed2 == 0 && accel1 == 0 && accel2 == 0 {
 			bMotion = false
 		}
 	}
@@ -1385,8 +1362,8 @@ func speed() fyne.CanvasObject {
 		sp.SetAcceleration(0, 0)
 		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
 		gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
-		entryAccel1.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
-		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
+		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", 0.00))
+		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.2f", 0.00))
 		time.Sleep(1 * time.Second)
 	}
 
@@ -1396,12 +1373,16 @@ func speed() fyne.CanvasObject {
 		if bMotion && !bTrip { // сбросить скорость и ускорение если в движении, но не в поездке на дистанцию
 			stopSpeed()
 			bMotion = false
-		} else { // если нет движения установить значения из полей ввода
-			entrySpeed1.Entry.OnSubmitted(entrySpeed1.Entry.Text)
-			gForm.EntrySpeed2.Entry.OnSubmitted(gForm.EntrySpeed2.Entry.Text)
-			entryAccel1.Entry.OnSubmitted(entryAccel1.Entry.Text)
-			gForm.EntryAccel2.Entry.OnSubmitted(gForm.EntryAccel2.Entry.Text)
-			bMotion = true
+		} else { // если нет движения установить значения из полей ввода если они не нулевые
+			if entrySpeed1.Entry.Text != "0.0" && gForm.EntrySpeed2.Entry.Text != "0.0" &&
+				entryAccel1.Entry.Text != "0.00" && gForm.EntryAccel2.Entry.Text != "0.00" {
+				entrySpeed1.Entry.OnSubmitted(entrySpeed1.Entry.Text)
+				gForm.EntrySpeed2.Entry.OnSubmitted(gForm.EntrySpeed2.Entry.Text)
+				entryAccel1.Entry.OnSubmitted(entryAccel1.Entry.Text)
+				gForm.EntryAccel2.Entry.OnSubmitted(gForm.EntryAccel2.Entry.Text)
+				bMotion = true
+			}
+
 		}
 
 	})
@@ -1428,20 +1409,38 @@ func speed() fyne.CanvasObject {
 
 	separatlyCheck := widget.NewCheckWithData("Раздельное управление", separately)
 
-	// labelParameters := widget.NewLabel("")
-	// gForm.Parameters = binding.NewString()
-	// labelParameters.Bind(gForm.Parameters)
-	// gForm.Parameters.Set(fmt.Sprintf("Число зубьев %d, диаметр бандажа %d мм", gBU.NumberTeeth, gBU.BandageDiameter))
+	currentSpeed1 = binding.NewString()
+	currentSpeed1.Set("0")
+	currentSpeed2 = binding.NewString()
+	currentSpeed2.Set("0")
 
-	box1 := container.NewGridWithColumns(
+	labelSpeedCurrent1 := widget.NewLabel("0.0")
+	labelSpeedCurrent1.Bind(currentSpeed1)
+	labelSpeedCurrent2 := widget.NewLabel("0.0")
+	labelSpeedCurrent2.Bind(currentSpeed2)
+
+	go currentSpeed()
+
+	box11 := container.NewGridWithColumns(
 		3,
 		dummy, widget.NewLabel("Канал 1"), widget.NewLabel("Канал 2"),
-		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, gForm.EntrySpeed2,
-		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, gForm.EntryAccel2,
-		widget.NewLabel(""), widget.NewLabel(""), startSpeedButton,
 	)
 
-	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box1, separatlyCheck, radioDirection /*, labelParameters*/)
+	box12 := container.NewGridWithColumns(
+		3,
+		widget.NewLabel("Текущая\ncкорость (км/ч):"), labelSpeedCurrent1, labelSpeedCurrent2,
+	)
+
+	box13 := container.NewGridWithColumns(
+		3,
+		widget.NewLabel("Скорость (км/ч):"), entrySpeed1, gForm.EntrySpeed2,
+		widget.NewLabel("Ускорение (м/с²):"), entryAccel1, gForm.EntryAccel2,
+		dummy, dummy, startSpeedButton,
+	)
+
+	boxSpeed := container.NewVBox(getTitle("Имитация движения:"), box11, box12, box13, separatlyCheck, radioDirection /*, labelParameters*/)
+
+	// Отображаем эталонную скорость
 
 	// ------------------------- box 2 ----------------------------
 
@@ -1497,16 +1496,18 @@ func speed() fyne.CanvasObject {
 			ShowMessage("Ошибка: не получено значение пути с ИПК", 4)
 			return false
 		}
+		startDistance = 0
 		ShowMessage(" ", 2)
 		fmt.Printf("Путь: %d м (%v)\n", setDistance, err)
 
 		entryMileage.Entry.SetText(fmt.Sprintf("%d", setDistance))
 		// скорость должны установить сами в поле ввода скорости
-		entrySpeed1.Entry.OnSubmitted(entrySpeed1.Entry.Text)
-		gForm.EntrySpeed2.Entry.OnSubmitted(gForm.EntrySpeed2.Entry.Text)
-		entryAccel1.Entry.OnSubmitted(entryAccel1.Entry.Text)
-		gForm.EntryAccel2.Entry.OnSubmitted(gForm.EntryAccel2.Entry.Text)
-
+		if !bMotion {
+			entrySpeed1.Entry.OnSubmitted(entrySpeed1.Entry.Text)
+			gForm.EntrySpeed2.Entry.OnSubmitted(gForm.EntrySpeed2.Entry.Text)
+			entryAccel1.Entry.OnSubmitted(entryAccel1.Entry.Text)
+			gForm.EntryAccel2.Entry.OnSubmitted(gForm.EntryAccel2.Entry.Text)
+		}
 		if accel1 == 0 && accel2 == 0 && speed1 == 0 && speed2 == 0 {
 			ShowMessage("Ошибка: не получено значение скорости или ускорения", 4)
 			return false
@@ -1523,9 +1524,11 @@ func speed() fyne.CanvasObject {
 		entryMileage.Entry.SetText(fmt.Sprintf("%d", setDistance))
 		entrySpeed1.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
 		gForm.EntrySpeed2.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
-		entryAccel1.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
-		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.1f", 0.0))
+		entryAccel1.Entry.SetText(fmt.Sprintf("%.2f", 0.00))
+		gForm.EntryAccel2.Entry.SetText(fmt.Sprintf("%.2f", 0.00))
 		time.Sleep(1 * time.Second)
+		bTrip = false
+		bMotion = false
 		// startMileage()
 		// currentDistance.Set("0")
 	}
@@ -1536,7 +1539,6 @@ func speed() fyne.CanvasObject {
 		if !bTrip {
 			startMileage()
 		} else {
-			bTrip = false
 			stopMileage()
 		}
 	})
@@ -1546,11 +1548,9 @@ func speed() fyne.CanvasObject {
 	// запуск по нажатию Enter
 	entryMileage.Entry.OnSubmitted = func(str string) {
 		if !bTrip {
-			// if
 			startMileage()
-			// {
-			// 	buttonMileage.SetText("Стоп")
-			// }
+		} else {
+			ShowMessage("Завершите поездку", 3)
 		}
 	}
 
@@ -1569,16 +1569,15 @@ func speed() fyne.CanvasObject {
 					fmt.Printf("Не получено значение пути с ИПК\n")
 					ShowMessage("Ошибка: не получено значение пути с ИПК", 4)
 					break
-				} else {
-					ShowMessage(" ", 2)
 				}
+				// else {
+				// 	ShowMessage(" ", 2)
+				// }
 				fmt.Println(m)
 				m -= startDistance
 				currentDistance.Set(fmt.Sprintf("%d", m))
 
 				if m >= setDistance {
-					bTrip = false
-					// buttonMileage.SetText("Старт")
 					fmt.Println("Дистанция пройдена")
 					ShowMessage("Дистанция пройдена", 4)
 
@@ -1712,7 +1711,7 @@ func speed() fyne.CanvasObject {
 	boxPress := container.NewVBox(getTitle("Имитация давления (кгс/см²):"), box3)
 
 	// boxAll := container.NewVBox(layout.NewSpacer(), boxSpeed, boxMileage, boxPress, dummy, layout.NewSpacer())
-	boxAll := container.NewVBox(dummy, boxSpeed, boxMileage, boxPress, dummy)
+	boxAll := container.NewVBox(customDummy, boxSpeed, boxMileage, boxPress, customDummy) // dummy,
 	box := container.NewHBox(dummy, boxAll, dummy)
 
 	return box
@@ -2087,24 +2086,19 @@ func top() fyne.CanvasObject {
 
 	gForm.CheckPower = widget.NewCheck("Питание КПД", func(on bool) {
 		gBU.Power(on)
-		// ShowMessage(" ")
-
-		// для БУ-4 выход из режима обслуживания - перезагрузка
-		// if !on && gBU.Variant == BU4 { // снять чек при выключении питания
-
-		// 	gForm.CheckTurt.SetChecked(false)
-
-		// }
 	})
 	gForm.CheckPower.SetChecked(true)
 
 	// Смена блока туть
-
 	selectDevice = widget.NewSelect(gDeviceChoice, func(s string) {
 		config.DeviceVariant = OptionsBU(selectDevice.SelectedIndex())
 		writeFyneAPP(config)
 		initDataBU(OptionsBU(selectDevice.SelectedIndex()))
-		readUPPfromBU()
+		if bConnectedCAN {
+			readUPPfromBU()
+		} else {
+			ShowMessage("Ошибка получения УПП с блока по CAN.", 3)
+		}
 		refreshForm()
 	})
 	selectDevice.SetSelectedIndex(int(gBU.Variant)) // предустановка
@@ -2131,7 +2125,7 @@ func showFormUPP() {
 	managePower.SetChecked(true)
 
 	w := fyne.CurrentApp().NewWindow("Установка условно постоянных признаков " + gBU.Name) // CurrentApp!
-	w.Resize(fyne.NewSize(800, 600))
+	w.Resize(fyne.NewSize(800, 650))
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 
@@ -2209,6 +2203,7 @@ func showFormUPP() {
 			if !isServiceModeBU4() {
 				_, msg := setServiceModeBU4()
 				statusLabel.SetText(msg)
+				time.Sleep(2 * time.Second) // todo
 			}
 		} else {
 			if managePower.Checked == true {
@@ -2288,4 +2283,19 @@ func ErrorDialog(title string, dismiss string, message string) {
 		},
 		w,
 	)
+}
+
+// Получаем текущую скорость во время движения или поездки
+func currentSpeed() {
+	for {
+		if bTrip || bMotion {
+			s1, s2, _ := sp.GetOutputSpeed()
+			currentSpeed1.Set(fmt.Sprintf("%.1f", s1))
+			currentSpeed2.Set(fmt.Sprintf("%.1f", s2))
+		} else {
+			currentSpeed1.Set(fmt.Sprintf("%.1f", 0.0))
+			currentSpeed2.Set(fmt.Sprintf("%.1f", 0.0))
+		}
+		time.Sleep(time.Second)
+	}
 }

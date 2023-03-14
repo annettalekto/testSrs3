@@ -522,23 +522,43 @@ func byteToBinSignal(data [8]byte) (str string) {
 	return
 }
 
+var msgSoftVersionBU4 candev.Message
+
 func canGetVersionBU4() (major, minor, patch, number byte, err error) {
 
 	msg := candev.Message{ID: SYS_DATA_QUERY, Len: 1}
 	msg.Data[0] = SOFT_VERSION
 	can25.Send(msg)
 
-	if msg, err = can25.GetMsgByID(SYS_DATA, 2*time.Second); err != nil {
-		err = errors.New("canGetVersionBU(): " + err.Error())
-		return
+	attemptCounter := 0
+	for {
+		if msgSoftVersionBU4.Data[0] == SOFT_VERSION {
+			major = msgSoftVersionBU4.Data[1]
+			minor = msgSoftVersionBU4.Data[2]
+			patch = msgSoftVersionBU4.Data[3]
+			number = msgSoftVersionBU4.Data[4]
+			err = nil
+			break
+		} else {
+			time.Sleep(time.Second / 4)
+			attemptCounter++
+			if attemptCounter == 10 {
+				err = errors.New("Номер версии бортовой БУ не получен")
+				return
+			}
+		}
 	}
-	if msg.Data[0] == SOFT_VERSION {
 
-		major = msg.Data[1]
-		minor = msg.Data[2]
-		patch = msg.Data[3]
-		number = msg.Data[4]
-	}
+	// if msg, err = can25.GetMsgByID(SYS_DATA, 2*time.Second); err != nil {
+	// 	err = errors.New("canGetVersionBU(): " + err.Error())
+	// 	return
+	// }
+	// if msg.Data[0] == SOFT_VERSION {
+	// 	major = msg.Data[1]
+	// 	minor = msg.Data[2]
+	// 	patch = msg.Data[3]
+	// 	number = msg.Data[4]
+	// }
 
 	fmt.Printf("Получен номер версии бортовой БУ: v.%d.%d.%d (в лоции №%d), err: %v ", major, minor, patch, number, err)
 	// str = fmt.Sprintf("v.%d.%d.%d (в лоции №%d)", major, minor, patch, number)
