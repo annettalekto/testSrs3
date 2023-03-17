@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"github.com/amdf/ipk"
-	"github.com/amdf/ixxatvci3/candev"
 )
 
-var can25 candev.Device
 var ipkBox ipk.IPK
 
 var sp ipk.Speed
@@ -99,6 +97,7 @@ func initIPK() (err error) {
 	if !ipkBox.AnalogDev.Open() {
 		errA = false
 	}
+
 	if !ipkBox.BinDev.Open() {
 		errB = false
 	}
@@ -268,6 +267,8 @@ func (bu *DescriptionBU) SetOperateMode() {
 
 	bu.Power(false)
 	bu.Turt(false)
+	gForm.CheckTurt.SetChecked(false)
+
 	time.Sleep(time.Second)
 	bu.Power(true)
 	time.Sleep(5 * time.Second)

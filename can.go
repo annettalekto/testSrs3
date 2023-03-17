@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/amdf/ixxatvci3/candev"
@@ -54,28 +53,28 @@ func setTimeBU(h, m, s int) (err error) {
 	return
 }
 
-func checkCAN() (err error) {
+// func checkCAN() (err error) {
 
-	// 5f9 валятся при загрузке блока
-	ok, e := can25.GetMsgRTR(0x5F9, 1*time.Second)
-	if e != nil {
-		if strings.Contains(e.Error(), "0 msgs") { //timeout (0 msgs) - ничего не пришло, скорее всего выкл пит
-			err = errors.New("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
-			return
-		}
-	} else if ok {
-		err = errors.New("Перейдите в режим поездки (нажмите «П» на БУ)") // идет загрузка или не включен режим поездки
-		return
-	}
+// 	// 5f9 валятся при загрузке блока
+// 	ok, e := can25.GetMsgRTR(0x5F9, 1*time.Second)
+// 	if e != nil {
+// 		if strings.Contains(e.Error(), "0 msgs") { //timeout (0 msgs) - ничего не пришло, скорее всего выкл пит
+// 			err = errors.New("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
+// 			return
+// 		}
+// 	} else if ok {
+// 		err = errors.New("Перейдите в режим поездки (нажмите «П» на БУ)") // идет загрузка или не включен режим поездки
+// 		return
+// 	}
 
-	// С7 сообщение времени, всегда отправляются
-	_, e = can25.GetMsgByID(0xC7, 1*time.Second)
-	if e != nil {
-		err = errors.New("Нет сообщений CAN")
-	}
+// 	// С7 сообщение времени, всегда отправляются
+// 	_, e = can25.GetMsgByID(0xC7, 1*time.Second)
+// 	if e != nil {
+// 		err = errors.New("Нет сообщений CAN")
+// 	}
 
-	return
-}
+// 	return
+// }
 
 // запрос x5C1 RTR=0 len=1 номер УПП
 // ответ  x5C0 len=5 номер УПП + 4 байта данные мл.байтом вперед
@@ -85,14 +84,11 @@ func checkCAN() (err error) {
 // 00 00 01 00 = 1.0
 // 00 00 02 00 = 2.0
 
+var msgSysInfo candev.Message
+
 // прочитать УПП из БУ в gUPP
 func readUPPfromBU() (err error) {
 	var msg candev.Message
-
-	// if nil == can25 {
-	// 	err = fmt.Errorf("%s", "null ptr")
-	// 	return
-	// }
 
 	for number, value := range gUPP {
 		msg.ID = idQueryInfo
@@ -105,23 +101,38 @@ func readUPPfromBU() (err error) {
 			return
 		}
 
-		msg, err = can25.GetMsgByID(idSysInfo, 2*time.Second)
-		if err != nil {
-			err = errors.New("Не получены значения УПП с блока по CAN")
-			return
-		} else if msg.Data[0] == byte(number) {
+		attemptCounter := 0
+		for {
+			if msgSysInfo.Data[0] != 0 {
+				break
+			} else {
+				time.Sleep(time.Second / 4)
+				attemptCounter++
+				if attemptCounter == 10 {
+					err = errors.New("Не получены значения УПП с блока по CAN")
+					return
+				}
+			}
+		}
+
+		// msgSysInfo, err = can25.GetMsgByID(idSysInfo, 2*time.Second)
+		// if err != nil {
+		// 	err = errors.New("Не получены значения УПП с блока по CAN")
+		// 	return
+		// } else
+		if msgSysInfo.Data[0] == byte(number) {
 			if number == 10 {
-				if msg.Data[1] == 5 {
+				if msgSysInfo.Data[1] == 5 {
 					value.Value = "0.5"
 				}
-				if msg.Data[3] == 1 {
+				if msgSysInfo.Data[3] == 1 {
 					value.Value = "1.0"
 				}
-				if msg.Data[3] == 2 {
+				if msgSysInfo.Data[3] == 2 {
 					value.Value = "2.0"
 				}
 			} else {
-				v := binary.LittleEndian.Uint32(msg.Data[1:])
+				v := binary.LittleEndian.Uint32(msgSysInfo.Data[1:])
 				value.Value = fmt.Sprintf("%d", v)
 			}
 		}
@@ -129,8 +140,12 @@ func readUPPfromBU() (err error) {
 	}
 	refreshDataBU()
 
+	msgSysInfo.Data[0] = 0 // reset data
+
 	return
 }
+
+var receiveMsgBu3pSysInfo candev.Message
 
 // по сути для одного признака 10 Дискретность регистрации топлива для БР (0.5, 1.0, 2.0)
 func setFloatVal(mod int, s string) (err error) {
@@ -140,7 +155,7 @@ func setFloatVal(mod int, s string) (err error) {
 		return
 	}
 
-	var sendMsg, receiveMsg candev.Message
+	var sendMsg candev.Message
 	sendMsg.ID = idSetUPP
 	sendMsg.Len = 5
 
@@ -159,13 +174,28 @@ func setFloatVal(mod int, s string) (err error) {
 	sendMsg.Data[4] = byte((d1 >> 8) & 0xFF)
 	can25.Send(sendMsg)
 
-	receiveMsg, err = can25.GetMsgByID(idBu3pSysInfo, 2*time.Second)
-	if err == nil {
-		if sendMsg.Data != receiveMsg.Data {
-			err = fmt.Errorf("setFloatVal(): значение признака не установлено: %X %X %X %X", sendMsg.Data[1], sendMsg.Data[2], sendMsg.Data[3], sendMsg.Data[4])
+	attemptCounter := 0
+	for {
+		if sendMsg.Data == receiveMsgBu3pSysInfo.Data {
+			break
+		} else {
+			time.Sleep(time.Second / 4)
+			attemptCounter++
+			if attemptCounter == 10 {
+				err = fmt.Errorf("setFloatVal(): значение признака не установлено: %X %X %X %X", sendMsg.Data[1], sendMsg.Data[2], sendMsg.Data[3], sendMsg.Data[4])
+				return
+			}
 		}
 	}
 
+	// receiveMsgBu3pSysInfo, err = can25.GetMsgByID(idBu3pSysInfo, 2*time.Second)
+	// if err == nil {
+	// 	if sendMsg.Data != receiveMsgBu3pSysInfo.Data {
+	// 		err = fmt.Errorf("setFloatVal(): значение признака не установлено: %X %X %X %X", sendMsg.Data[1], sendMsg.Data[2], sendMsg.Data[3], sendMsg.Data[4])
+	// 	}
+	// }
+
+	receiveMsgBu3pSysInfo.Data[0] = 0
 	return
 }
 
@@ -178,7 +208,7 @@ func setIntVal(mod int, s string) (err error) {
 		return
 	}
 
-	var sendMsg, receiveMsg candev.Message
+	var sendMsg candev.Message
 	sendMsg.ID = idSetUPP
 	sendMsg.Len = 5
 
@@ -186,12 +216,26 @@ func setIntVal(mod int, s string) (err error) {
 	binary.LittleEndian.PutUint32(sendMsg.Data[1:], uint32(value))
 	can25.Send(sendMsg)
 
-	if receiveMsg, err = can25.GetMsgByID(idBu3pSysInfo, 2*time.Second); err == nil {
-		if sendMsg.Data != receiveMsg.Data {
-			err = fmt.Errorf("setIntVal(): значение признака не установлено: %d", (int(sendMsg.Data[2])<<8 | int(sendMsg.Data[1])))
+	attemptCounter := 0
+	for {
+		if sendMsg.Data == receiveMsgBu3pSysInfo.Data {
+			break
+		} else {
+			time.Sleep(time.Second / 4)
+			attemptCounter++
+			if attemptCounter == 10 {
+				err = fmt.Errorf("setFloatVal(): значение признака не установлено: %X %X %X %X", sendMsg.Data[1], sendMsg.Data[2], sendMsg.Data[3], sendMsg.Data[4])
+				return
+			}
 		}
 	}
 
+	// if receiveMsg, err = can25.GetMsgByID(idBu3pSysInfo, 2*time.Second); err == nil {
+	// 	if sendMsg.Data != receiveMsgBu3pSysInfo.Data {
+	// 		err = fmt.Errorf("setIntVal(): значение признака не установлено: %d", (int(sendMsg.Data[2])<<8 | int(sendMsg.Data[1])))
+	// 	}
+	// }
+	receiveMsgBu3pSysInfo.Data[0] = 0
 	return
 }
 
@@ -206,23 +250,25 @@ func setIntVal(mod int, s string) (err error) {
 7-й байт: время, секунды
 */
 
+var msgTime candev.Message
+
 func canGetTimeBU() (tm time.Time, err error) {
-	var msg candev.Message
+	// var msg candev.Message
 
-	msg, err = can25.GetMsgByID(0xC7, 10*time.Second)
-	if err != nil {
-		err = errors.New("canGetTimeBU(): " + err.Error())
-	}
+	// msgTime, err = can25.GetMsgByID(idTimeBU, 10*time.Second)
+	// if err != nil {
+	// 	err = errors.New("canGetTimeBU(): " + err.Error())
+	// }
 
-	tm = time.Date(int((uint(msg.Data[0])<<8)|(uint(msg.Data[1]))), //год
-		time.Month(msg.Data[2]),       //месяц
-		int(msg.Data[3]),              //день
-		int(msg.Data[4]),              //час
-		int(msg.Data[5]),              //мин
-		int(msg.Data[6]), 0, time.UTC) //секунды не учитываем
+	tm = time.Date(int((uint(msgTime.Data[0])<<8)|(uint(msgTime.Data[1]))), //год
+		time.Month(msgTime.Data[2]),       //месяц
+		int(msgTime.Data[3]),              //день
+		int(msgTime.Data[4]),              //час
+		int(msgTime.Data[5]),              //мин
+		int(msgTime.Data[6]), 0, time.UTC) //секунды не учитываем
 	fmt.Printf("%d\n", tm.Year())
-	fmt.Printf("%d\n", int((uint(msg.Data[0])<<8)&(uint(msg.Data[1]))))
-	fmt.Printf("%d %d\n", (uint(msg.Data[0])), (uint(msg.Data[1])))
+	fmt.Printf("%d\n", int((uint(msgTime.Data[0])<<8)&(uint(msgTime.Data[1]))))
+	fmt.Printf("%d %d\n", (uint(msgTime.Data[0])), (uint(msgTime.Data[1])))
 
 	return
 }
@@ -476,23 +522,43 @@ func byteToBinSignal(data [8]byte) (str string) {
 	return
 }
 
+var msgSoftVersionBU4 candev.Message
+
 func canGetVersionBU4() (major, minor, patch, number byte, err error) {
 
 	msg := candev.Message{ID: SYS_DATA_QUERY, Len: 1}
 	msg.Data[0] = SOFT_VERSION
 	can25.Send(msg)
 
-	if msg, err = can25.GetMsgByID(SYS_DATA, 2*time.Second); err != nil {
-		err = errors.New("canGetVersionBU(): " + err.Error())
-		return
+	attemptCounter := 0
+	for {
+		if msgSoftVersionBU4.Data[0] == SOFT_VERSION {
+			major = msgSoftVersionBU4.Data[1]
+			minor = msgSoftVersionBU4.Data[2]
+			patch = msgSoftVersionBU4.Data[3]
+			number = msgSoftVersionBU4.Data[4]
+			err = nil
+			break
+		} else {
+			time.Sleep(time.Second / 4)
+			attemptCounter++
+			if attemptCounter == 10 {
+				err = errors.New("Номер версии бортовой БУ не получен")
+				return
+			}
+		}
 	}
-	if msg.Data[0] == SOFT_VERSION {
 
-		major = msg.Data[1]
-		minor = msg.Data[2]
-		patch = msg.Data[3]
-		number = msg.Data[4]
-	}
+	// if msg, err = can25.GetMsgByID(SYS_DATA, 2*time.Second); err != nil {
+	// 	err = errors.New("canGetVersionBU(): " + err.Error())
+	// 	return
+	// }
+	// if msg.Data[0] == SOFT_VERSION {
+	// 	major = msg.Data[1]
+	// 	minor = msg.Data[2]
+	// 	patch = msg.Data[3]
+	// 	number = msg.Data[4]
+	// }
 
 	fmt.Printf("Получен номер версии бортовой БУ: v.%d.%d.%d (в лоции №%d), err: %v ", major, minor, patch, number, err)
 	// str = fmt.Sprintf("v.%d.%d.%d (в лоции №%d)", major, minor, patch, number)
