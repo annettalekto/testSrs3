@@ -28,6 +28,7 @@ import (
 	"github.com/amdf/ipk"
 	"github.com/amdf/ixxatvci3"
 	"github.com/amdf/ixxatvci3/candev"
+	"github.com/shirou/gopsutil/process"
 	"github.com/xlab/closer"
 )
 
@@ -61,6 +62,8 @@ func main() {
 		}
 	}()
 
+	programAlreadyRunning()
+
 	// Инит
 	var b candev.Builder
 	var err error
@@ -86,8 +89,9 @@ func main() {
 	// Форма
 	a := app.New()
 	w = a.NewWindow(config.ProgramName) // с окнами у fyne проблемы
-	w.Resize(fyne.NewSize(1024, 870))   // если размер менее, то баг при сворачивании
-	w.SetFixedSize(true)                // не использовать без Resize
+	// w.Resize(fyne.NewSize(1024, 870))   // если размер менее, то баг при сворачивании
+	// w.SetFixedSize(true)                // не использовать без Resize
+	// w.SetFullScreen(true)
 
 	ic, _ := fyne.LoadResourceFromPath(config.Icon)
 	w.SetIcon(ic)
@@ -306,7 +310,7 @@ func resetInfo() {
 func threadConnectionCAN() {
 	errCounter := 0
 	for {
-		_, err := can25.GetMsgByID(idTimeBU, 500*time.Millisecond)
+		_, err := can25.GetMsgByID(idTimeBU, 500*time.Millisecond) // todo
 		if err != nil {
 			if errCounter == 5 {
 				resetInfo()
@@ -341,6 +345,13 @@ func threadShowForm() {
 		} else {
 			fmt.Println("Блок БУ не обнаружен")
 			setStatus("Проверьте подключение CAN. Включите тумбер ИПК (50В) и переведите БУ в режим поездки")
+			// setStatus(fmt.Sprintf("RcvOkCount = %d, RcvErrCount = %d, RcvProcessedActive =  %d, RcvBackgroundNoData = %d", can25.RcvOkCount, can25.RcvErrCount, can25.RcvProcessedActive, can25.RcvBackgroundNoData))
+
+			// fmt.Println("RcvOkCount = ", can25.RcvOkCount)
+			// fmt.Println("RcvErrCount = ", can25.RcvErrCount)
+			// fmt.Println("RcvProcessedActive = ", can25.RcvProcessedActive)
+			// fmt.Println("RcvBackgroundNoData = ", can25.RcvBackgroundNoData)
+
 			bRebootBU = true
 		}
 		activityWindow()
@@ -1033,7 +1044,13 @@ func getListCAN() fyne.CanvasObject {
 		}
 	}()
 
-	box := container.NewBorder(getTitle("Данные CAN:"), nil, nil, nil, list)
+	// задаем минимальную ширину бордера
+	// labelDummy := widget.NewLabel("                                                                    ")
+
+	customDummy := canvas.NewText("____________________________________________________________________ ", color.White) // кастомный отступ
+	customDummy.TextSize = 10
+
+	box := container.NewBorder(getTitle("Данные CAN:"), customDummy, nil, nil, list)
 
 	return box
 }
@@ -1073,6 +1090,7 @@ func getCAN() {
 		// threadActivityOk <- 1
 		stop := false
 		ch, idx = can25.GetMsgChannelCopy()
+		// defer can25.CloseMsgChannelCopy(idx)
 
 		for !stop {
 			select {
@@ -2305,5 +2323,38 @@ func currentSpeed() {
 		}
 
 		time.Sleep(time.Second)
+	}
+}
+
+/*
+После закрытия прораммы требуется время на закрытие канала CAN и т д
+Если запустить программу раньше деинициализации - баг (закроется канал в только открытой программе)
+*/
+func programAlreadyRunning() {
+	var name string
+	var bStop = true
+	var countProcess = 0
+	time.AfterFunc(6*time.Second, func() {
+		bStop = false // Время отображения сообщения истекло
+	})
+	for bStop {
+		processes, _ := process.Processes()
+		for _, process := range processes {
+			name, _ = process.Name()
+			if name == "testSrs3.exe" {
+				countProcess++
+				if countProcess >= 2 {
+					time.Sleep(time.Second / 2)
+					// fmt.Println("testSrs3 уже запущен")
+					countProcess = 0
+					break
+				}
+			}
+		}
+
+		// вышли из цикла с именем процесса не testSrs3 значит процесс не запущен
+		if name != "testSrs3.exe" {
+			return
+		}
 	}
 }
