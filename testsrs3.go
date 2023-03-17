@@ -355,8 +355,8 @@ func updateAfterReboot() {
 				getVersionBU4()
 				bRebootBU = false
 			}
-			time.Sleep(time.Second)
 		}
+		time.Sleep(time.Second)
 	}
 }
 
